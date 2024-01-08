@@ -79,8 +79,41 @@ fn setup_physics(
         .spawn(RigidBody::Dynamic)
         .insert(Collider::ball(0.5))
         .insert(Restitution::coefficient(0.7))
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, 4.0, 0.0)));
+        .insert(TransformBundle::from(Transform::from_xyz(4.0, 4.0, 0.0)));
+
+    commands.spawn(RigidBody::KinematicPositionBased)
+        .insert(Collider::capsule_y(1.0, 0.5))
+        .insert(KinematicCharacterController {
+            offset: CharacterLength::Absolute(0.01),
+            ..default()
+        })
+        .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
 }
+
+
+fn read_result_system(controllers: Query<(Entity, &KinematicCharacterControllerOutput)>) {
+    for (entity, output) in controllers.iter() {
+        println!("Entity {:?} moved by {:?} and touches the ground: {:?}",
+                  entity, output.effective_translation, output.grounded);
+    }
+}
+
+fn character_movement(
+    mut controllers: Query<&mut KinematicCharacterController>,
+    keys: Res<Input<KeyCode>>,
+) {
+    for mut controller in controllers.iter_mut() {
+        if keys.just_pressed(KeyCode::Space){
+            // jump
+            controller.translation = Some(Vec3::new(0.0, 1.5, 0.0));
+        }
+        else {
+            // todo: apply gravity instead of just setting this
+            controller.translation = Some(Vec3::new(0.0, -0.5, 0.0));
+        }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -98,5 +131,7 @@ fn main() {
             .add_systems(Startup, setup_camera)
             .add_systems(Startup, setup_scene)
             .add_systems(Startup, setup_physics)
+            .add_systems(Update, character_movement)
+            .add_systems(Update, read_result_system)
         .run();
 }
