@@ -10,4 +10,10 @@ cargo install cargo-watch
 cargo watch -cx "run --target wasm32-unknown-unknown"
 ```
 
+or
+
+```
+cargo run --features bevy/dynamic_linking
+```
+
 

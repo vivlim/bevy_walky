@@ -3,14 +3,9 @@ name = "bevy_walky"
 version = "0.1.0"
 edition = "2021"
 
-[target.wasm32-unknown-unknown]
-runner = "wasm-server-runner"
-
-[build]
-target = "wasm32-unknown-unknown"
-
 [profile.dev.package."*"]
 opt-level = 2
 
 [dependencies]
-bevy = "0.12"
+bevy = { version = "0.12", features = [] }
+bevy_rapier3d = { version = "0.23", features = ["debug-render"] }
