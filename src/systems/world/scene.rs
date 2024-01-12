@@ -1,6 +1,11 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
+use crate::components::player::physics::{
+    PlatformingCharacterControl, PlatformingCharacterPhysics, PlatformingCharacterPhysicsAccel,
+    PlatformingCharacterValues,
+};
+
 /// set up a simple 3D scene
 pub fn setup_scene(
     mut commands: Commands,
@@ -68,6 +73,26 @@ pub fn setup_physics(
         .insert(KinematicCharacterController {
             offset: CharacterLength::Absolute(0.01),
             ..default()
+        })
+        .insert(PlatformingCharacterPhysics {
+            ground_speed: Vec2::ZERO,
+            air_speed: crate::components::player::physics::AirSpeed::Grounded,
+        })
+        .insert(PlatformingCharacterPhysicsAccel {
+            ground_acceleration: Vec2::ZERO,
+            ground_friction: 0.0,
+            air_acceleration: 0.0,
+        })
+        .insert(PlatformingCharacterControl {
+            move_input: Vec2::ZERO,
+            jump_pressed: false,
+        })
+        .insert(PlatformingCharacterValues {
+            acceleration_speed: 2.0,
+            deceleration_speed: 0.5,
+            top_speed: 10.0,
+            friction_speed: 1.0,
+            gravity: 1.0,
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
 }
