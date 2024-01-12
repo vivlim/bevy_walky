@@ -2,6 +2,7 @@ pub mod components;
 pub mod systems;
 
 use bevy::prelude::*;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 use systems::player::physics::{
     update_platforming_accel_from_controls, update_platforming_kinematic_from_physics,
@@ -20,8 +21,13 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
+        .register_type::<components::player::physics::PlatformingCharacterPhysics>()
+        .register_type::<components::player::physics::PlatformingCharacterPhysicsAccel>()
+        .register_type::<components::player::physics::PlatformingCharacterValues>()
+        .register_type::<components::player::physics::PlatformingCharacterControl>()
         .add_systems(Startup, systems::world::camera::setup_camera)
         .add_systems(Startup, systems::world::scene::setup_scene)
         .add_systems(Startup, systems::world::scene::setup_physics)

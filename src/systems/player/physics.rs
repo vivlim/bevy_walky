@@ -25,26 +25,26 @@ pub fn character_movement(
     for mut controller in controllers.iter_mut() {
         if keys.just_pressed(KeyCode::Space) {
             // jump
-            controller.translation = Some(Vec3::new(0.0, 1.5, 0.0));
+            //controller.translation = Some(Vec3::new(0.0, 1.5, 0.0));
         } else {
             // todo: apply gravity instead of just setting this
-            controller.translation = Some(Vec3::new(0.0, -0.5, 0.0));
+            //controller.translation = Some(Vec3::new(0.0, -0.5, 0.0));
         }
         let mut keyboardDirection = Vec2::new(0.0, 0.0);
         if keys.pressed(KeyCode::Up) {
             keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
         }
         if keys.pressed(KeyCode::Down) {
-            keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
+            keyboardDirection += Vec2 { x: 0.0, y: -1.0 }
         }
         if keys.pressed(KeyCode::Left) {
-            keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
+            keyboardDirection += Vec2 { x: -1.0, y: 0.0 }
         }
         if keys.pressed(KeyCode::Right) {
-            keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
+            keyboardDirection += Vec2 { x: 1.0, y: 0.0 }
         }
         for mut cc in character_control.iter_mut() {
-            cc.move_input = keyboardDirection.normalize();
+            cc.move_input = keyboardDirection.normalize_or_zero();
         }
     }
 }
@@ -53,12 +53,10 @@ pub fn update_platforming_physics(
     mut query: Query<(
         &mut PlatformingCharacterPhysics,
         &mut PlatformingCharacterPhysicsAccel,
-        &mut KinematicCharacterPhysics,
-        &PlatformingCharacterControl,
         &PlatformingCharacterValues,
     )>,
 ) {
-    for (mut platforming, mut accel, mut kinematic_physics, control, values) in query.iter_mut() {
+    for (mut platforming, mut accel, values) in query.iter_mut() {
         if accel.air_acceleration > 0.0 {
             if let AirSpeed::Grounded = platforming.air_speed {
                 // Trying to jump, and on the ground.
@@ -68,14 +66,17 @@ pub fn update_platforming_physics(
 
         match platforming.air_speed {
             AirSpeed::Grounded => {
-                let started_over_top_speed = platforming.ground_speed.length() > values.top_speed;
+                //let initial_speed = platforming.ground_speed.length() > values.top_speed;
                 // Apply acceleration if we aren't over top speed.
                 platforming.ground_speed += accel.ground_acceleration;
+                // Actually for now just clamp ground speed to top speed. tune it later.
+                platforming.ground_speed =
+                    platforming.ground_speed.clamp_length(0.0, values.top_speed);
                 // Apply friction
                 if (accel.ground_friction > 0.0) {
                     // Get friction vector - start with a unit vector that's facing the direction
                     // of ground speed.
-                    let ground_friction_direction = platforming.ground_speed.normalize();
+                    let ground_friction_direction = platforming.ground_speed.normalize_or_zero();
                     // flip it
                     let ground_friction_direction = Vec2 {
                         x: ground_friction_direction.x * -1.0,
@@ -88,13 +89,14 @@ pub fn update_platforming_physics(
 
                     // if the ground speed is now facing the same direction as the friction vector was,
                     // we should stop.
-                    if platforming.ground_speed.normalize() == ground_friction_direction {
+                    if platforming.ground_speed.normalize_or_zero() == ground_friction_direction {
                         platforming.ground_speed = Vec2::ZERO;
                     }
                 }
             }
             AirSpeed::InAir(air_speed) => {
                 // Apply gravity
+                todo!("implement being in the air")
             }
         }
 

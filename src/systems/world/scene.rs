@@ -88,10 +88,10 @@ pub fn setup_physics(
             jump_pressed: false,
         })
         .insert(PlatformingCharacterValues {
-            acceleration_speed: 2.0,
-            deceleration_speed: 0.5,
-            top_speed: 10.0,
-            friction_speed: 1.0,
+            acceleration_speed: 0.02,
+            deceleration_speed: 0.02,
+            top_speed: 1.0,
+            friction_speed: 0.08,
             gravity: 1.0,
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
