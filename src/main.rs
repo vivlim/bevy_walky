@@ -33,8 +33,14 @@ fn main() {
         .add_systems(Startup, systems::world::scene::setup_physics)
         .add_systems(Update, systems::player::physics::character_movement)
         .add_systems(Update, systems::player::physics::read_result_system)
-        .add_systems(Update, update_platforming_physics)
-        .add_systems(Update, update_platforming_accel_from_controls)
-        .add_systems(Update, update_platforming_kinematic_from_physics)
+        .add_systems(
+            FixedUpdate,
+            update_platforming_physics.after(update_platforming_accel_from_controls),
+        )
+        .add_systems(FixedUpdate, update_platforming_accel_from_controls)
+        .add_systems(
+            FixedUpdate,
+            update_platforming_kinematic_from_physics.after(update_platforming_physics),
+        )
         .run();
 }
