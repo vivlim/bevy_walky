@@ -1,9 +1,12 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::components::player::physics::{
-    PlatformingCharacterControl, PlatformingCharacterPhysics, PlatformingCharacterPhysicsAccel,
-    PlatformingCharacterValues,
+use crate::components::{
+    camera::OrbitCameraTarget,
+    player::physics::{
+        PlatformingCharacterControl, PlatformingCharacterPhysics, PlatformingCharacterPhysicsAccel,
+        PlatformingCharacterValues,
+    },
 };
 
 /// set up a simple 3D scene
@@ -93,6 +96,12 @@ pub fn setup_physics(
             top_speed: 1.0,
             friction_speed: 0.08,
             gravity: 1.0,
+        })
+        .insert(OrbitCameraTarget {
+            distance: 5.0,
+            active: true,
+            yaw: 0.0,
+            pitch: 0.0,
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
 }
