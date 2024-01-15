@@ -44,6 +44,7 @@ fn main() {
         .add_systems(Startup, systems::world::scene::setup_scene)
         .add_systems(Startup, systems::world::scene::setup_physics)
         .add_systems(Update, systems::player::physics::character_movement)
+        .add_systems(Update, systems::player::physics::character_gamepad)
         .add_systems(Update, systems::player::physics::read_result_system)
         .add_systems(Update, update_camera)
         .add_systems(

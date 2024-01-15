@@ -49,6 +49,7 @@ pub fn update_camera(
                 look_transform.target = target_transform.translation;
                 // Move the camera there.
                 camera_transform.translation = camera_target_position;
+                camera_transform.look_at(target_transform.translation, Vec3::Y);
                 return;
             }
 
