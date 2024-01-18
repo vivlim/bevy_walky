@@ -10,3 +10,8 @@ pub struct OrbitCameraTarget {
     pub pitch: f32,
     pub active: bool,
 }
+
+#[derive(Component, Reflect)]
+pub struct ViewpointMappedInput {
+    pub move_input: Vec2,
+}

@@ -65,3 +65,17 @@ pub fn update_camera(
         unreal_camera.enabled = true;
     }
 }
+
+pub fn update_camera(
+    mut cameras: Query<(
+        &mut UnrealCameraController,
+        &mut LookTransform,
+        &mut Transform,
+        Without<OrbitCameraTarget>,
+    )>,
+    targets: Query<(&OrbitCameraTarget, &Transform, Without<LookTransform>)>,
+    mut gizmos: Gizmos,
+) {
+    // TODO: write a system that takes in 'input' component and the camera position, and projects
+    // them
+}

@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{parry::transformation::utils::transform, prelude::*};
 
 use crate::components::{
     camera::OrbitCameraTarget,
@@ -234,9 +234,11 @@ pub fn update_platforming_kinematic_from_physics(
     mut query: Query<(
         &PlatformingCharacterPhysics,
         &mut KinematicCharacterController,
+        &Transform,
     )>,
+    mut gizmos: Gizmos,
 ) {
-    for (physics, mut kinematic) in query.iter_mut() {
+    for (physics, mut kinematic, transform) in query.iter_mut() {
         kinematic.translation = if physics.ground_speed.length() > 0.0 {
             // Map the ground speed into 3d space
             let ground_speed = Vec3 {
@@ -244,6 +246,8 @@ pub fn update_platforming_kinematic_from_physics(
                 y: 0.0,
                 z: physics.ground_speed.y,
             };
+
+            gizmos.ray(transform.translation, ground_speed, Color::RED);
 
             Some(ground_speed)
         } else {
