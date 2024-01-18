@@ -4,7 +4,7 @@ pub mod systems;
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
-use components::camera::OrbitCameraTarget;
+use components::camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput};
 use smooth_bevy_cameras::{
     controllers::{orbit::OrbitCameraPlugin, unreal::UnrealCameraPlugin},
     LookTransform, LookTransformBundle, LookTransformPlugin,
@@ -14,7 +14,7 @@ use systems::{
         update_platforming_accel_from_controls, update_platforming_kinematic_from_physics,
         update_platforming_physics,
     },
-    world::camera::update_camera,
+    world::camera::{project_input_camera, update_camera},
 };
 
 fn main() {
@@ -40,6 +40,8 @@ fn main() {
         .register_type::<components::player::physics::PlatformingCharacterControl>()
         .register_type::<LookTransform>()
         .register_type::<OrbitCameraTarget>()
+        .register_type::<ViewpointMappable>()
+        .register_type::<ViewpointMappedInput>()
         .add_systems(Startup, systems::world::camera::setup_camera)
         .add_systems(Startup, systems::world::scene::setup_scene)
         .add_systems(Startup, systems::world::scene::setup_physics)
@@ -47,6 +49,7 @@ fn main() {
         .add_systems(Update, systems::player::physics::character_gamepad)
         .add_systems(Update, systems::player::physics::read_result_system)
         .add_systems(Update, update_camera)
+        .add_systems(Update, project_input_camera)
         .add_systems(
             FixedUpdate,
             update_platforming_physics.after(update_platforming_accel_from_controls),

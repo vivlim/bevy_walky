@@ -1,10 +1,10 @@
 use std::f32::consts::PI;
 
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{parry::transformation::utils::transform, prelude::*};
 
 use crate::components::{
-    camera::OrbitCameraTarget,
+    camera::{OrbitCameraTarget, ViewpointMappedInput},
     player::physics::{
         AirSpeed, KinematicCharacterPhysics, PlatformingCharacterControl,
         PlatformingCharacterPhysics, PlatformingCharacterPhysicsAccel, PlatformingCharacterValues,
@@ -22,7 +22,7 @@ pub fn read_result_system(controllers: Query<(Entity, &KinematicCharacterControl
 
 pub fn character_movement(
     mut controllers: Query<&mut KinematicCharacterController>,
-    mut character_control: Query<&mut PlatformingCharacterControl>,
+    mut character_control: Query<(&mut PlatformingCharacterControl, &mut ViewpointMappedInput)>,
     mut camera_targets: Query<&mut OrbitCameraTarget>,
     keys: Res<Input<KeyCode>>,
     mut mouse: EventReader<MouseMotion>,
@@ -49,8 +49,8 @@ pub fn character_movement(
             keyboardDirection += Vec2 { x: 1.0, y: 0.0 }
         }
         if keyboardDirection.length() > 0.0 {
-            for mut cc in character_control.iter_mut() {
-                cc.move_input = keyboardDirection.normalize_or_zero();
+            for (_, mut vmi) in character_control.iter_mut() {
+                vmi.move_input = keyboardDirection.normalize_or_zero();
             }
         }
 
@@ -73,7 +73,7 @@ pub fn character_movement(
 
 pub fn character_gamepad(
     mut controllers: Query<&mut KinematicCharacterController>,
-    mut character_control: Query<&mut PlatformingCharacterControl>,
+    mut character_control: Query<(&mut PlatformingCharacterControl, &mut ViewpointMappedInput)>,
     mut camera_targets: Query<&mut OrbitCameraTarget>,
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<Input<GamepadButton>>,
@@ -104,8 +104,8 @@ pub fn character_gamepad(
 
             // Example: check if the stick is pushed up
             if left_stick_pos.length() > 0.3 {
-                for mut cc in character_control.iter_mut() {
-                    cc.move_input = left_stick_pos.normalize_or_zero();
+                for (_, mut vmi) in character_control.iter_mut() {
+                    vmi.move_input = left_stick_pos.normalize_or_zero();
                 }
             }
         }
@@ -234,9 +234,11 @@ pub fn update_platforming_kinematic_from_physics(
     mut query: Query<(
         &PlatformingCharacterPhysics,
         &mut KinematicCharacterController,
+        &Transform,
     )>,
+    mut gizmos: Gizmos,
 ) {
-    for (physics, mut kinematic) in query.iter_mut() {
+    for (physics, mut kinematic, transform) in query.iter_mut() {
         kinematic.translation = if physics.ground_speed.length() > 0.0 {
             // Map the ground speed into 3d space
             let ground_speed = Vec3 {
@@ -244,6 +246,8 @@ pub fn update_platforming_kinematic_from_physics(
                 y: 0.0,
                 z: physics.ground_speed.y,
             };
+
+            gizmos.ray(transform.translation, ground_speed, Color::RED);
 
             Some(ground_speed)
         } else {

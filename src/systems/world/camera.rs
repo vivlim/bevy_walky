@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{math::vec3, prelude::*};
 use smooth_bevy_cameras::{
     controllers::{
         orbit::{OrbitCameraBundle, OrbitCameraController},
@@ -7,7 +7,10 @@ use smooth_bevy_cameras::{
     LookTransform, LookTransformBundle, Smoother,
 };
 
-use crate::components::camera::{MyCameraMarker, OrbitCameraTarget};
+use crate::components::{
+    camera::{MyCameraMarker, OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput},
+    player::physics::PlatformingCharacterControl,
+};
 
 pub fn setup_camera(mut commands: Commands) {
     commands
@@ -27,12 +30,17 @@ pub fn update_camera(
         &mut Transform,
         Without<OrbitCameraTarget>,
     )>,
-    targets: Query<(&OrbitCameraTarget, &Transform, Without<LookTransform>)>,
+    mut targets: Query<(
+        &OrbitCameraTarget,
+        &Transform,
+        &mut ViewpointMappable,
+        Without<LookTransform>,
+    )>,
     mut gizmos: Gizmos,
 ) {
     let mut last_target: Option<&OrbitCameraTarget> = None;
     for (mut unreal_camera, mut look_transform, mut camera_transform, _) in cameras.iter_mut() {
-        for (target, target_transform, _) in targets.iter() {
+        for (target, target_transform, mut viewpoint_mappable, _) in targets.iter_mut() {
             // Get camera target yaw and pitch, and compute vector
             let xz_len = f32::cos(target.pitch);
             let direction = Vec3::new(
@@ -50,6 +58,8 @@ pub fn update_camera(
                 // Move the camera there.
                 camera_transform.translation = camera_target_position;
                 camera_transform.look_at(target_transform.translation, Vec3::Y);
+
+                viewpoint_mappable.forward = camera_transform.rotation;
                 return;
             }
 
@@ -63,5 +73,47 @@ pub fn update_camera(
         }
 
         unreal_camera.enabled = true;
+    }
+}
+
+pub fn project_input_camera(
+    mut targets: Query<(
+        &mut ViewpointMappedInput,
+        &ViewpointMappable,
+        &mut PlatformingCharacterControl,
+        &Transform,
+    )>,
+    mut gizmos: Gizmos,
+) {
+    // TODO: write a system that takes in 'input' component and the camera position, and projects
+    // them
+    for (mut input_to_map, orientation, mut control, transform) in targets.iter_mut() {
+        let input = Vec3::new(
+            input_to_map.move_input.x,
+            0.0,
+            input_to_map.move_input.y * -1.0,
+        );
+        let forward = orientation.forward.mul_vec3(input);
+
+        gizmos.ray(
+            transform.translation,
+            orientation.forward.mul_vec3(Vec3::X),
+            Color::RED,
+        );
+        gizmos.ray(
+            transform.translation,
+            orientation.forward.mul_vec3(Vec3::Y),
+            Color::GREEN,
+        );
+        gizmos.ray(
+            transform.translation,
+            orientation.forward.mul_vec3(Vec3::Z),
+            Color::BLUE,
+        );
+
+        let result = forward.xz().normalize_or_zero() * input.length();
+        control.move_input = result;
+
+        input_to_map.move_input = Vec2::ZERO;
     }
 }

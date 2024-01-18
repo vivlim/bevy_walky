@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
 use crate::components::{
-    camera::OrbitCameraTarget,
+    camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput},
     player::physics::{
         PlatformingCharacterControl, PlatformingCharacterPhysics, PlatformingCharacterPhysicsAccel,
         PlatformingCharacterValues,
@@ -102,6 +102,12 @@ pub fn setup_physics(
             active: true,
             yaw: 0.0,
             pitch: 0.0,
+        })
+        .insert(ViewpointMappable {
+            forward: Quat::default(),
+        })
+        .insert(ViewpointMappedInput {
+            move_input: Vec2::ZERO,
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
 }
