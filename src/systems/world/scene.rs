@@ -14,6 +14,7 @@ pub fn setup_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     // circular base
     // commands.spawn(PbrBundle {
@@ -40,6 +41,11 @@ pub fn setup_scene(
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..default()
     });
+    commands
+        .spawn(SceneBundle {
+            scene: asset_server.load("walky_objs.glb#Scene0"),
+            ..default()
+        })
 }
 pub fn setup_physics(
     mut commands: Commands,

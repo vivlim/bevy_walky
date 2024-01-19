@@ -16,4 +16,7 @@ or
 cargo run --features bevy/dynamic_linking
 ```
 
-
+# building for web
+```
+trunk build --public-url "http://vvn.space/bevy_walky/"
+```
