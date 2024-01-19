@@ -228,7 +228,7 @@ pub fn update_platforming_kinematic_from_physics(
     mut gizmos: Gizmos,
 ) {
     for (physics, rb, mut lv, rot, transform) in query.iter_mut() {
-        if physics.ground_speed.length() > 0.0 {
+        if physics.ground_speed.length() > 1.0 {
             // Map the ground speed into 3d space
             lv.x = physics.ground_speed.x;
             lv.z = physics.ground_speed.y;

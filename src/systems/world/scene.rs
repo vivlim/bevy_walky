@@ -43,14 +43,13 @@ pub fn setup_scene(
         ..default()
     });
 
-    commands
-        .spawn(SceneBundle {
-            scene: asset_server.load("walky_objs.glb#Scene0"),
-            ..default()
-        });
-        // .insert(Collider::from_bevy_mesh(
-        //     asset_server.load("walky_objs.glb#Mesh0"),
-        // ));
+    commands.spawn(SceneBundle {
+        scene: asset_server.load("walky_objs.glb#Scene0"),
+        ..default()
+    });
+    // .insert(Collider::from_bevy_mesh(
+    //     asset_server.load("walky_objs.glb#Mesh0"),
+    // ));
 }
 pub fn setup_physics(
     mut commands: Commands,
@@ -73,23 +72,22 @@ pub fn setup_physics(
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)));
 
-
     commands
         .spawn(RigidBody::Kinematic)
         .insert(Collider::capsule(1.0, 0.5))
         .insert(RigidBody::Kinematic)
         .insert(Collider::capsule(1.0, 0.4))
-            // .insert(
+        // .insert(
         // // Cast the player shape downwards to detect when the player is grounded
         // ShapeCaster::new(
-            // Collider::capsule(0.9, 0.35),
-            // Vector::ZERO,
-            // Quaternion::default(),
-            // Vector::NEG_Y,
+        // Collider::capsule(0.9, 0.35),
+        // Vector::ZERO,
+        // Quaternion::default(),
+        // Vector::NEG_Y,
         // )
         // .with_max_time_of_impact(0.11)
         // .with_max_hits(1),
-            //     )
+        //     )
         .insert(PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
             air_speed: crate::components::player::physics::AirSpeed::Grounded,
@@ -104,10 +102,10 @@ pub fn setup_physics(
             jump_pressed: false,
         })
         .insert(PlatformingCharacterValues {
-            acceleration_speed: 0.02,
-            deceleration_speed: 0.02,
-            top_speed: 1.0,
-            friction_speed: 0.08,
+            acceleration_speed: 1.00,
+            deceleration_speed: 1.00,
+            top_speed: 15.0,
+            friction_speed: 0.30,
             gravity: 1.0,
         })
         .insert(OrbitCameraTarget {
