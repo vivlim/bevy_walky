@@ -85,8 +85,6 @@ pub fn project_input_camera(
     )>,
     mut gizmos: Gizmos,
 ) {
-    // TODO: write a system that takes in 'input' component and the camera position, and projects
-    // them
     for (mut input_to_map, orientation, mut control, transform) in targets.iter_mut() {
         let input = Vec3::new(
             input_to_map.move_input.x,

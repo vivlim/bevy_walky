@@ -8,6 +8,6 @@ opt-level = 2
 
 [dependencies]
 bevy = { version = "0.12", features = [] }
-bevy_rapier3d = { version = "0.23", features = ["debug-render"] }
+bevy_xpbd_3d = { version = "0.3.3" }
 bevy-inspector-egui = { version = "0.22.1", features = ["bevy_pbr"] }
 smooth-bevy-cameras = "0.10.0"

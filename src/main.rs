@@ -3,7 +3,7 @@ pub mod systems;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::prelude::*;
 use components::camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput};
 use smooth_bevy_cameras::{
     controllers::{orbit::OrbitCameraPlugin, unreal::UnrealCameraPlugin},
@@ -31,9 +31,8 @@ fn main() {
         }))
         .add_plugins(LookTransformPlugin)
         .add_plugins(WorldInspectorPlugin::new())
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(UnrealCameraPlugin::default())
-        .add_plugins(RapierDebugRenderPlugin::default())
+        .add_plugins(PhysicsPlugins::default())
         .register_type::<components::player::physics::PlatformingCharacterPhysics>()
         .register_type::<components::player::physics::PlatformingCharacterPhysicsAccel>()
         .register_type::<components::player::physics::PlatformingCharacterValues>()
@@ -47,7 +46,6 @@ fn main() {
         .add_systems(Startup, systems::world::scene::setup_physics)
         .add_systems(Update, systems::player::physics::character_movement)
         .add_systems(Update, systems::player::physics::character_gamepad)
-        .add_systems(Update, systems::player::physics::read_result_system)
         .add_systems(Update, update_camera)
         .add_systems(Update, project_input_camera)
         .add_systems(

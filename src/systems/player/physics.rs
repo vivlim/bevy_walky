@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use bevy_rapier3d::{parry::transformation::utils::transform, prelude::*};
+use bevy_xpbd_3d::prelude::*;
 
 use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappedInput},
@@ -11,68 +11,55 @@ use crate::components::{
     },
 };
 
-pub fn read_result_system(controllers: Query<(Entity, &KinematicCharacterControllerOutput)>) {
-    for (entity, output) in controllers.iter() {
-        println!(
-            "Entity {:?} moved by {:?} and touches the ground: {:?}",
-            entity, output.effective_translation, output.grounded
-        );
-    }
-}
-
 pub fn character_movement(
-    mut controllers: Query<&mut KinematicCharacterController>,
     mut character_control: Query<(&mut PlatformingCharacterControl, &mut ViewpointMappedInput)>,
     mut camera_targets: Query<&mut OrbitCameraTarget>,
     keys: Res<Input<KeyCode>>,
     mut mouse: EventReader<MouseMotion>,
 ) {
-    for mut controller in controllers.iter_mut() {
-        if keys.just_pressed(KeyCode::Space) {
-            // jump
-            //controller.translation = Some(Vec3::new(0.0, 1.5, 0.0));
-        } else {
-            // todo: apply gravity instead of just setting this
-            //controller.translation = Some(Vec3::new(0.0, -0.5, 0.0));
+    if keys.just_pressed(KeyCode::Space) {
+        // jump
+        //controller.translation = Some(Vec3::new(0.0, 1.5, 0.0));
+    } else {
+        // todo: apply gravity instead of just setting this
+        //controller.translation = Some(Vec3::new(0.0, -0.5, 0.0));
+    }
+    let mut keyboardDirection = Vec2::new(0.0, 0.0);
+    if keys.pressed(KeyCode::Up) {
+        keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
+    }
+    if keys.pressed(KeyCode::Down) {
+        keyboardDirection += Vec2 { x: 0.0, y: -1.0 }
+    }
+    if keys.pressed(KeyCode::Left) {
+        keyboardDirection += Vec2 { x: -1.0, y: 0.0 }
+    }
+    if keys.pressed(KeyCode::Right) {
+        keyboardDirection += Vec2 { x: 1.0, y: 0.0 }
+    }
+    if keyboardDirection.length() > 0.0 {
+        for (_, mut vmi) in character_control.iter_mut() {
+            vmi.move_input = keyboardDirection.normalize_or_zero();
         }
-        let mut keyboardDirection = Vec2::new(0.0, 0.0);
-        if keys.pressed(KeyCode::Up) {
-            keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
-        }
-        if keys.pressed(KeyCode::Down) {
-            keyboardDirection += Vec2 { x: 0.0, y: -1.0 }
-        }
-        if keys.pressed(KeyCode::Left) {
-            keyboardDirection += Vec2 { x: -1.0, y: 0.0 }
-        }
-        if keys.pressed(KeyCode::Right) {
-            keyboardDirection += Vec2 { x: 1.0, y: 0.0 }
-        }
-        if keyboardDirection.length() > 0.0 {
-            for (_, mut vmi) in character_control.iter_mut() {
-                vmi.move_input = keyboardDirection.normalize_or_zero();
-            }
-        }
+    }
 
-        let mut cursor_delta = Vec2::ZERO;
-        for event in mouse.read() {
-            cursor_delta += event.delta;
-        }
+    let mut cursor_delta = Vec2::ZERO;
+    for event in mouse.read() {
+        cursor_delta += event.delta;
+    }
 
-        const mouse_look_factor: f32 = 0.001;
-        if cursor_delta.length() > 0.3 {
-            for mut c in &mut camera_targets {
-                if c.active {
-                    c.pitch += cursor_delta.y * mouse_look_factor;
-                    c.yaw += cursor_delta.x * mouse_look_factor;
-                }
+    const mouse_look_factor: f32 = 0.001;
+    if cursor_delta.length() > 0.3 {
+        for mut c in &mut camera_targets {
+            if c.active {
+                c.pitch += cursor_delta.y * mouse_look_factor;
+                c.yaw += cursor_delta.x * mouse_look_factor;
             }
         }
     }
 }
 
 pub fn character_gamepad(
-    mut controllers: Query<&mut KinematicCharacterController>,
     mut character_control: Query<(&mut PlatformingCharacterControl, &mut ViewpointMappedInput)>,
     mut camera_targets: Query<&mut OrbitCameraTarget>,
     axes: Res<Axis<GamepadAxis>>,
@@ -233,25 +220,25 @@ pub fn update_platforming_accel_from_controls(
 pub fn update_platforming_kinematic_from_physics(
     mut query: Query<(
         &PlatformingCharacterPhysics,
-        &mut KinematicCharacterController,
+        &RigidBody,
+        &mut LinearVelocity,
+        &Rotation,
         &Transform,
     )>,
     mut gizmos: Gizmos,
 ) {
-    for (physics, mut kinematic, transform) in query.iter_mut() {
-        kinematic.translation = if physics.ground_speed.length() > 0.0 {
+    for (physics, rb, mut lv, rot, transform) in query.iter_mut() {
+        if physics.ground_speed.length() > 0.0 {
             // Map the ground speed into 3d space
-            let ground_speed = Vec3 {
-                x: physics.ground_speed.x,
-                y: 0.0,
-                z: physics.ground_speed.y,
-            };
+            lv.x = physics.ground_speed.x;
+            lv.z = physics.ground_speed.y;
+            lv.y = 0.0;
 
-            gizmos.ray(transform.translation, ground_speed, Color::RED);
-
-            Some(ground_speed)
+            //gizmos.ray(transform.translation, lv., Color::RED);
         } else {
-            None
+            lv.x = 0.0;
+            lv.z = 0.0;
+            lv.y = 0.0;
         }
     }
 }

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
+
+use bevy_xpbd_3d::prelude::*;
 
 use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput},
@@ -41,11 +42,15 @@ pub fn setup_scene(
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..default()
     });
+
     commands
         .spawn(SceneBundle {
             scene: asset_server.load("walky_objs.glb#Scene0"),
             ..default()
-        })
+        });
+        // .insert(Collider::from_bevy_mesh(
+        //     asset_server.load("walky_objs.glb#Mesh0"),
+        // ));
 }
 pub fn setup_physics(
     mut commands: Commands,
@@ -54,8 +59,7 @@ pub fn setup_physics(
 ) {
     /* Create the ground. */
     commands
-        .spawn(Collider::cuboid(100.0, 0.1, 100.0))
-        .insert(PbrBundle {
+        .spawn(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Box {
                 min_x: -50.0,
                 max_x: 50.0,
@@ -69,20 +73,23 @@ pub fn setup_physics(
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)));
 
-    /* Create the bouncing ball. */
-    commands
-        .spawn(RigidBody::Dynamic)
-        .insert(Collider::ball(0.5))
-        .insert(Restitution::coefficient(0.7))
-        .insert(TransformBundle::from(Transform::from_xyz(4.0, 4.0, 0.0)));
 
     commands
-        .spawn(RigidBody::KinematicPositionBased)
-        .insert(Collider::capsule_y(1.0, 0.5))
-        .insert(KinematicCharacterController {
-            offset: CharacterLength::Absolute(0.01),
-            ..default()
-        })
+        .spawn(RigidBody::Kinematic)
+        .insert(Collider::capsule(1.0, 0.5))
+        .insert(RigidBody::Kinematic)
+        .insert(Collider::capsule(1.0, 0.4))
+            // .insert(
+        // // Cast the player shape downwards to detect when the player is grounded
+        // ShapeCaster::new(
+            // Collider::capsule(0.9, 0.35),
+            // Vector::ZERO,
+            // Quaternion::default(),
+            // Vector::NEG_Y,
+        // )
+        // .with_max_time_of_impact(0.11)
+        // .with_max_hits(1),
+            //     )
         .insert(PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
             air_speed: crate::components::player::physics::AirSpeed::Grounded,
