@@ -11,3 +11,4 @@ bevy = { version = "0.12", features = [] }
 bevy_xpbd_3d = { version = "0.3.3" }
 bevy-inspector-egui = { version = "0.22.1", features = ["bevy_pbr"] }
 smooth-bevy-cameras = "0.10.0"
+bevy_easings = "0.12"
