@@ -100,13 +100,13 @@ pub fn character_gamepad(
             if f32::abs(ry) > 0.1 {
                 for mut c in &mut camera_targets {
                     info!("adjusting camera pitch");
-                    c.pitch += ry
+                    c.pitch -= ry * 0.003
                 }
             }
             if f32::abs(rx) > 0.1 {
                 for mut c in &mut camera_targets {
                     info!("adjusting camera yaw");
-                    c.yaw += rx
+                    c.yaw -= rx * 0.005
                 }
             }
         }
