@@ -73,7 +73,13 @@ pub fn setup_physics(
         .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)));
 
     commands
-        .spawn(RigidBody::Kinematic)
+        .spawn(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
+            material: materials.add(Color::rgb_u8(124, 0, 255).into()),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        })
+        .insert(RigidBody::Kinematic)
         .insert(Collider::capsule(1.0, 0.5))
         .insert(RigidBody::Kinematic)
         .insert(Collider::capsule(1.0, 0.4))
@@ -122,3 +128,4 @@ pub fn setup_physics(
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
 }
+
