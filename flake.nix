@@ -33,11 +33,11 @@
 
         bevyDeps = with pkgs; {
           # thanks, https://github.com/bevyengine/bevy/blob/main/docs/linux_dependencies.md#nixos !
-          nativeBuildInputs = [ pkg-config llvmPackages.bintools vulkan-loader nixgl.nixVulkanIntel vulkan-tools 
+          nativeBuildInputs = [ pkg-config llvmPackages.bintools vulkan-loader vulkan-tools 
             openssl # deps for building wasm. we have to cargo install -f wasm-bindgen-cli, the nixpkg is out of sync 
           ];
           buildInputs = [ # wip and not minimal. was trying to get stuff working on my desktop and didn't finish
-            udev alsaLib 
+            udev alsa-lib vulkan-loader
             xorg.libICE xorg.libSM xorg.libX11 xorg.libXcursor xorg.libXrandr xorg.libXi # To use x11 feature
             libxkbcommon wayland # To use wayland feature
             gdk-pixbuf atk pango cairo gtk3-x11 # additional dependencies for voxel-level-editor
@@ -49,7 +49,7 @@
       in {
         devShell = with pkgs;
           mkShell rec {
-            nativeBuildInputs = [ toolchain bevyDeps.nativeBuildInputs ];
+            nativeBuildInputs = [ toolchain bevyDeps.nativeBuildInputs nil ];
             buildInputs = bevyDeps.buildInputs;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
           };
