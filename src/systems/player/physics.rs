@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use bevy_xpbd_3d::prelude::*;
+use bevy_xpbd_3d::{math::Scalar, prelude::*};
 
 use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappedInput},
@@ -99,14 +99,14 @@ pub fn character_gamepad(
         if let (Some(rx), Some(ry)) = (axes.get(axis_rx), axes.get(axis_ry)) {
             if f32::abs(ry) > 0.1 {
                 for mut c in &mut camera_targets {
-                    info!("adjusting camera pitch");
-                    c.pitch -= ry * 0.003
+                    //info!("adjusting camera pitch");
+                    c.pitch -= ry * 0.007
                 }
             }
             if f32::abs(rx) > 0.1 {
                 for mut c in &mut camera_targets {
-                    info!("adjusting camera yaw");
-                    c.yaw -= rx * 0.005
+                    //info!("adjusting camera yaw");
+                    c.yaw -= rx * 0.01
                 }
             }
         }
@@ -120,9 +120,18 @@ pub fn character_gamepad(
             button_type: GamepadButtonType::East,
         };
 
+        // If jump was pressed and is now released, update state
+        for (mut pcc, _) in character_control.iter_mut() {
+            if pcc.jump_pressed && !buttons.pressed(jump_button) {
+                pcc.jump_pressed = false;
+            }
+        }
+        // If jump was just pressed, update state
         if buttons.just_pressed(jump_button) {
             // button just pressed: make the player jump
-            info!("pushed jump");
+            for (mut pcc, _) in character_control.iter_mut() {
+                pcc.jump_pressed = true;
+            }
         }
     }
 }
@@ -173,8 +182,12 @@ pub fn update_platforming_physics(
                 }
             }
             AirSpeed::InAir(air_speed) => {
-                // Apply gravity
-                todo!("implement being in the air")
+                // Apply acceleration and gravity
+                let air_speed = air_speed + accel.air_acceleration + values.gravity;
+                // TODO: consider separate top speed for air.
+                let air_speed = air_speed.clamp(values.top_speed * -1.0, values.top_speed);
+
+                platforming.air_speed = AirSpeed::InAir(air_speed);
             }
         }
 
@@ -214,6 +227,17 @@ pub fn update_platforming_accel_from_controls(
             accel.ground_acceleration = Vec2::ZERO;
             accel.ground_friction = values.friction_speed;
         }
+
+        match (&platforming.air_speed, control.jump_pressed) {
+            (AirSpeed::Grounded, true) => {
+                accel.air_acceleration = values.jump_speed;
+            }
+            (AirSpeed::InAir(_), false) => {
+                accel.air_acceleration = 0.0; // TODO: this blocks any contribution to air accel
+                                              // other than jumping.
+            }
+            _ => (),
+        }
     }
 }
 
@@ -232,13 +256,65 @@ pub fn update_platforming_kinematic_from_physics(
             // Map the ground speed into 3d space
             lv.x = physics.ground_speed.x;
             lv.z = physics.ground_speed.y;
-            lv.y = 0.0;
 
             //gizmos.ray(transform.translation, lv., Color::RED);
         } else {
             lv.x = 0.0;
             lv.z = 0.0;
+        }
+
+        if let AirSpeed::InAir(air_speed) = physics.air_speed {
+            lv.y = air_speed;
+        } else {
             lv.y = 0.0;
+        }
+    }
+}
+
+pub fn handle_collisions(
+    collisions: Res<Collisions>,
+    mut bodies: Query<(
+        &RigidBody,
+        &mut Position,
+        &Rotation,
+        Option<&mut PlatformingCharacterPhysics>,
+    )>,
+) {
+    // Iterate through collisions and move the kinematic body to resolve penetration
+    for contacts in collisions.iter() {
+        // If the collision didn't happen during this substep, skip the collision
+        if !contacts.during_current_substep {
+            continue;
+        }
+        if let Ok(
+            [(rb1, mut position1, rotation1, mut maybe_physics1), (rb2, mut position2, _, mut maybe_physics2)],
+        ) = bodies.get_many_mut([contacts.entity1, contacts.entity2])
+        {
+            for manifold in contacts.manifolds.iter() {
+                for contact in manifold.contacts.iter() {
+                    if contact.penetration <= Scalar::EPSILON {
+                        continue;
+                    }
+                    if rb1.is_kinematic() && !rb2.is_kinematic() {
+                        position1.0 -= contact.global_normal1(rotation1) * contact.penetration;
+
+                        if let Some(ref mut physics) = maybe_physics1 {
+                            if let AirSpeed::InAir(_) = physics.air_speed {
+                                physics.air_speed = AirSpeed::Grounded;
+                                info!("now grounded (entity 1)");
+                            }
+                        }
+                    } else if rb2.is_kinematic() && !rb1.is_kinematic() {
+                        position2.0 += contact.global_normal1(rotation1) * contact.penetration;
+                        if let Some(ref mut physics) = maybe_physics2 {
+                            if let AirSpeed::InAir(_) = physics.air_speed {
+                                physics.air_speed = AirSpeed::Grounded;
+                                info!("now grounded (entity 2)");
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

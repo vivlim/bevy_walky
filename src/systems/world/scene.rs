@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use bevy_xpbd_3d::math::*;
 use bevy_xpbd_3d::prelude::*;
 
 use crate::components::{
@@ -70,7 +71,9 @@ pub fn setup_physics(
             material: materials.add(Color::WHITE.into()),
             ..default()
         })
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)));
+        .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)))
+        .insert(RigidBody::Static)
+        .insert(Collider::cuboid(50.0, 0.005, 50.0));
 
     commands
         .spawn(PbrBundle {
@@ -83,17 +86,17 @@ pub fn setup_physics(
         .insert(Collider::capsule(1.0, 0.5))
         .insert(RigidBody::Kinematic)
         .insert(Collider::capsule(1.0, 0.4))
-        // .insert(
-        // // Cast the player shape downwards to detect when the player is grounded
-        // ShapeCaster::new(
-        // Collider::capsule(0.9, 0.35),
-        // Vector::ZERO,
-        // Quaternion::default(),
-        // Vector::NEG_Y,
-        // )
-        // .with_max_time_of_impact(0.11)
-        // .with_max_hits(1),
-        //     )
+        // Cast the player shape downwards to detect when the player is grounded
+        .insert(
+            ShapeCaster::new(
+                Collider::capsule(0.9, 0.35),
+                Vector::ZERO,
+                Quaternion::default(),
+                Vector::NEG_Y,
+            )
+            .with_max_time_of_impact(0.11)
+            .with_max_hits(1),
+        )
         .insert(PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
             air_speed: crate::components::player::physics::AirSpeed::Grounded,
@@ -112,7 +115,8 @@ pub fn setup_physics(
             deceleration_speed: 1.00,
             top_speed: 15.0,
             friction_speed: 0.30,
-            gravity: 1.0,
+            gravity: -0.2,
+            jump_speed: 5.0,
         })
         .insert(OrbitCameraTarget {
             distance: 5.0,
@@ -128,4 +132,3 @@ pub fn setup_physics(
         })
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
 }
-

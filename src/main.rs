@@ -2,6 +2,7 @@ pub mod components;
 pub mod systems;
 
 use bevy::prelude::*;
+use bevy::transform::TransformSystem;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_xpbd_3d::prelude::*;
 use components::camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput};
@@ -9,11 +10,10 @@ use smooth_bevy_cameras::{
     controllers::{orbit::OrbitCameraPlugin, unreal::UnrealCameraPlugin},
     LookTransform, LookTransformBundle, LookTransformPlugin,
 };
-use bevy::transform::TransformSystem;
 use systems::{
     player::physics::{
-        update_platforming_accel_from_controls, update_platforming_kinematic_from_physics,
-        update_platforming_physics,
+        handle_collisions, update_platforming_accel_from_controls,
+        update_platforming_kinematic_from_physics, update_platforming_physics,
     },
     world::camera::{project_input_camera, update_camera},
 };
@@ -49,19 +49,25 @@ fn main() {
         .add_systems(Update, systems::player::physics::character_gamepad)
         .add_systems(Update, update_camera)
         .add_systems(Update, project_input_camera)
-        .add_systems( // constraints avoid camera jitter: https://github.com/Jondolf/bevy_xpbd/issues/211#issuecomment-1789342920
-            PostUpdate,
-            update_camera.after(PhysicsSet::Sync)
-            .before(TransformSystem::TransformPropagate),
-        )
         .add_systems(
-            FixedUpdate,
-            update_platforming_physics.after(update_platforming_accel_from_controls),
+            // constraints avoid camera jitter: https://github.com/Jondolf/bevy_xpbd/issues/211#issuecomment-1789342920
+            PostUpdate,
+            update_camera
+                .after(PhysicsSet::Sync)
+                .before(TransformSystem::TransformPropagate),
         )
         .add_systems(FixedUpdate, update_platforming_accel_from_controls)
         .add_systems(
             FixedUpdate,
+            update_platforming_physics.after(update_platforming_accel_from_controls),
+        )
+        .add_systems(
+            FixedUpdate,
             update_platforming_kinematic_from_physics.after(update_platforming_physics),
+        )
+        .add_systems(
+            FixedUpdate,
+            handle_collisions.after(update_platforming_kinematic_from_physics),
         )
         .run();
 }
