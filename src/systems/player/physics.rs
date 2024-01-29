@@ -274,11 +274,14 @@ pub fn update_platforming_kinematic_from_physics(
 pub fn handle_collisions(
     collisions: Res<Collisions>,
     mut bodies: Query<(
-        &RigidBody,
+        Option<&RigidBody>,
+        Option<&ColliderParent>,
         &mut Position,
         &Rotation,
         Option<&mut PlatformingCharacterPhysics>,
+        Without<AsyncSceneCollider>,
     )>,
+    mut scene_bodies: Query<(&RigidBody, &Children, &Handle<Scene>)>,
 ) {
     // Iterate through collisions and move the kinematic body to resolve penetration
     for contacts in collisions.iter() {
@@ -287,7 +290,7 @@ pub fn handle_collisions(
             continue;
         }
         if let Ok(
-            [(rb1, mut position1, rotation1, mut maybe_physics1), (rb2, mut position2, _, mut maybe_physics2)],
+            [(rb1, cp1, mut position1, rotation1, mut maybe_physics1, _), (rb2, cp2, mut position2, _, mut maybe_physics2, _)],
         ) = bodies.get_many_mut([contacts.entity1, contacts.entity2])
         {
             for manifold in contacts.manifolds.iter() {
@@ -295,21 +298,57 @@ pub fn handle_collisions(
                     if contact.penetration <= Scalar::EPSILON {
                         continue;
                     }
-                    if rb1.is_kinematic() && !rb2.is_kinematic() {
-                        position1.0 -= contact.global_normal1(rotation1) * contact.penetration;
 
-                        if let Some(ref mut physics) = maybe_physics1 {
-                            if let AirSpeed::InAir(_) = physics.air_speed {
-                                physics.air_speed = AirSpeed::Grounded;
-                                info!("now grounded (entity 1)");
+                    let rb1 = match (rb1, cp1) {
+                        (None, Some(p)) => match scene_bodies.get_component::<RigidBody>(p.get()) {
+                            Ok(rb) => Some(rb),
+                            Err(e) => {
+                                warn!("failed to get parent rigid body for {:?}: {:?}", p.get(), e);
+                                None
                             }
+                        },
+                        (Some(r), _) => Some(r),
+                        (None, None) => {
+                            warn!(
+                                "a colliding object was not a rigid body or parented to something"
+                            );
+                            None
                         }
-                    } else if rb2.is_kinematic() && !rb1.is_kinematic() {
-                        position2.0 += contact.global_normal1(rotation1) * contact.penetration;
-                        if let Some(ref mut physics) = maybe_physics2 {
-                            if let AirSpeed::InAir(_) = physics.air_speed {
-                                physics.air_speed = AirSpeed::Grounded;
-                                info!("now grounded (entity 2)");
+                    };
+                    let rb2 = match (rb2, cp2) {
+                        (None, Some(p)) => match scene_bodies.get_component::<RigidBody>(p.get()) {
+                            Ok(rb) => Some(rb),
+                            Err(e) => {
+                                warn!("failed to get parent rigid body for {:?}: {:?}", p.get(), e);
+                                None
+                            }
+                        },
+                        (Some(r), _) => Some(r),
+                        (None, None) => {
+                            warn!(
+                                "a colliding object was not a rigid body or parented to something"
+                            );
+                            None
+                        }
+                    };
+
+                    if let (Some(rb1), Some(rb2)) = (rb1, rb2) {
+                        if rb1.is_kinematic() && !rb2.is_kinematic() {
+                            position1.0 -= contact.global_normal1(rotation1) * contact.penetration;
+
+                            if let Some(ref mut physics) = maybe_physics1 {
+                                if let AirSpeed::InAir(_) = physics.air_speed {
+                                    physics.air_speed = AirSpeed::Grounded;
+                                    info!("now grounded (entity 1)");
+                                }
+                            }
+                        } else if rb2.is_kinematic() && !rb1.is_kinematic() {
+                            position2.0 += contact.global_normal1(rotation1) * contact.penetration;
+                            if let Some(ref mut physics) = maybe_physics2 {
+                                if let AirSpeed::InAir(_) = physics.air_speed {
+                                    physics.air_speed = AirSpeed::Grounded;
+                                    info!("now grounded (entity 2)");
+                                }
                             }
                         }
                     }

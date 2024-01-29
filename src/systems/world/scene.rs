@@ -27,12 +27,16 @@ pub fn setup_scene(
     // })
     //     .insert(TransformBundle::from(Transform::from_xyz(0.0,-2.0,0.0)));
     // cube
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb_u8(124, 144, 255).into()),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
-        ..default()
-    });
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            material: materials.add(Color::rgb_u8(124, 144, 255).into()),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        },
+        AsyncCollider(ComputedCollider::ConvexHull),
+        RigidBody::Static,
+    ));
     // light
     commands.spawn(PointLightBundle {
         point_light: PointLight {
@@ -44,10 +48,37 @@ pub fn setup_scene(
         ..default()
     });
 
-    commands.spawn(SceneBundle {
-        scene: asset_server.load("walky_objs.glb#Scene0"),
-        ..default()
-    });
+    commands.spawn((
+        SceneBundle {
+            scene: asset_server.load("walky_objs.glb#Scene0"),
+            ..default()
+        },
+        AsyncSceneCollider::new(Some(ComputedCollider::ConvexDecomposition(
+            VHACDParameters::default(),
+        ))),
+        RigidBody::Static,
+    ));
+
+    commands.spawn((
+        SceneBundle {
+            // The model was made by RayMarch, licenced under CC0-1.0, and can be found here:
+            // https://github.com/RayMarch/ferris3d
+            scene: asset_server.load("ferris.glb#Scene0"),
+            transform: Transform::from_xyz(0.0, 4.0, 0.0).with_scale(Vec3::splat(2.0)),
+            ..default()
+        },
+        // Create colliders using convex decomposition.
+        // This takes longer than creating a trimesh or convex hull collider,
+        // but is more performant for collision detection.
+        AsyncSceneCollider::new(Some(ComputedCollider::ConvexDecomposition(
+            VHACDParameters::default(),
+        )))
+        // Make the arms heavier to make it easier to stand upright
+        .with_density_for_name("armL_mesh", 5.0)
+        .with_density_for_name("armR_mesh", 5.0),
+        RigidBody::Dynamic,
+    ));
+
     // .insert(Collider::from_bevy_mesh(
     //     asset_server.load("walky_objs.glb#Mesh0"),
     // ));
@@ -58,8 +89,8 @@ pub fn setup_physics(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     /* Create the ground. */
-    commands
-        .spawn(PbrBundle {
+    commands.spawn((
+        PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Box {
                 min_x: -50.0,
                 max_x: 50.0,
@@ -70,10 +101,10 @@ pub fn setup_physics(
             })),
             material: materials.add(Color::WHITE.into()),
             ..default()
-        })
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)))
-        .insert(RigidBody::Static)
-        .insert(Collider::cuboid(50.0, 0.005, 50.0));
+        },
+        AsyncCollider(ComputedCollider::ConvexHull),
+        RigidBody::Static,
+    ));
 
     commands
         .spawn(PbrBundle {
@@ -84,8 +115,6 @@ pub fn setup_physics(
         })
         .insert(RigidBody::Kinematic)
         .insert(Collider::capsule(1.0, 0.5))
-        .insert(RigidBody::Kinematic)
-        .insert(Collider::capsule(1.0, 0.4))
         // Cast the player shape downwards to detect when the player is grounded
         .insert(
             ShapeCaster::new(
@@ -116,7 +145,7 @@ pub fn setup_physics(
             top_speed: 15.0,
             friction_speed: 0.30,
             gravity: -0.2,
-            jump_speed: 5.0,
+            jump_speed: 2.0,
         })
         .insert(OrbitCameraTarget {
             distance: 5.0,
