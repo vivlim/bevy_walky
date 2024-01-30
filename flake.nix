@@ -49,7 +49,7 @@
       in {
         devShell = with pkgs;
           mkShell rec {
-            nativeBuildInputs = [ toolchain bevyDeps.nativeBuildInputs nil ];
+            nativeBuildInputs = [ toolchain bevyDeps.nativeBuildInputs nil mold clang ];
             buildInputs = bevyDeps.buildInputs;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
           };
