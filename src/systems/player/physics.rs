@@ -151,14 +151,18 @@ pub fn update_platforming_physics(
             }
         }
 
+        let ground_accel = match platforming.air_speed {
+            AirSpeed::Grounded => accel.ground_acceleration,
+            AirSpeed::InAir(_) => accel.ground_acceleration * 0.5,
+        };
+        //let initial_speed = platforming.ground_speed.length() > values.top_speed;
+        // Apply acceleration if we aren't over top speed.
+        platforming.ground_speed += accel.ground_acceleration;
+        // Actually for now just clamp ground speed to top speed. tune it later.
+        platforming.ground_speed = platforming.ground_speed.clamp_length(0.0, values.top_speed);
+
         match platforming.air_speed {
             AirSpeed::Grounded => {
-                //let initial_speed = platforming.ground_speed.length() > values.top_speed;
-                // Apply acceleration if we aren't over top speed.
-                platforming.ground_speed += accel.ground_acceleration;
-                // Actually for now just clamp ground speed to top speed. tune it later.
-                platforming.ground_speed =
-                    platforming.ground_speed.clamp_length(0.0, values.top_speed);
                 // Apply friction
                 if (accel.ground_friction > 0.0) {
                     // Get friction vector - start with a unit vector that's facing the direction
@@ -299,6 +303,9 @@ pub fn handle_collisions(
                         continue;
                     }
 
+                    // TODO: pretty sure the perf of having to do get_component here is awful,
+                    // write a component that attaches RigidBody::Static to any child with a
+                    // collider that belongs to a static rigid body
                     let rb1 = match (rb1, cp1) {
                         (None, Some(p)) => match scene_bodies.get_component::<RigidBody>(p.get()) {
                             Ok(rb) => Some(rb),
