@@ -68,6 +68,7 @@ fn main() {
         .register_type::<ViewpointMappedInput>()
         .add_systems(Startup, systems::world::camera::setup_camera)
         .add_systems(Startup, systems::world::scene::setup_scene)
+        .add_systems(Startup, systems::player::spawn::spawn_player)
         .add_systems(Startup, systems::world::scene::setup_physics)
         .add_systems(
             Update,
