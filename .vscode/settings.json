@@ -1,0 +1,11 @@
+{
+    /* pair with a matching keybind in user keybindings.json, such as:
+        { 
+            "key": "f4",
+            "command": "workbench.action.tasks.runTask",
+            "args": "rust: cargo run",
+            "when": "config.viv.bindings.cargoRun" // Must be "config.{settingName}"
+        },
+    */
+    "viv.bindings.cargoRun": true
+}
