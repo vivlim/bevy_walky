@@ -7,6 +7,7 @@ use bevy::{prelude::*, render::RenderPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_xpbd_3d::prelude::*;
 use components::camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput};
+use components::player::sensors::CharacterSensorArray;
 use smooth_bevy_cameras::{
     controllers::{orbit::OrbitCameraPlugin, unreal::UnrealCameraPlugin},
     LookTransform, LookTransformBundle, LookTransformPlugin,
@@ -62,6 +63,7 @@ fn main() {
         .register_type::<components::player::physics::PlatformingCharacterPhysicsAccel>()
         .register_type::<components::player::physics::PlatformingCharacterValues>()
         .register_type::<components::player::physics::PlatformingCharacterControl>()
+        .register_type::<CharacterSensorArray>()
         .register_type::<LookTransform>()
         .register_type::<OrbitCameraTarget>()
         .register_type::<ViewpointMappable>()
@@ -80,6 +82,7 @@ fn main() {
         )
         .add_systems(Update, systems::player::control::character_movement)
         .add_systems(Update, systems::player::control::character_gamepad)
+        .add_systems(Update, systems::player::sensors::update_sensors)
         .add_systems(Update, update_camera)
         .add_systems(Update, project_input_camera)
         .add_systems(

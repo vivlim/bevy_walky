@@ -12,7 +12,7 @@ pub enum CharacterSensor {
 }
 
 /// Collection of sensors belonging to a character
-#[derive(Component, Reflect)]
+#[derive(Component, Reflect, Debug)]
 pub struct CharacterSensorArray {
     pub sensors: [Entity; CharacterSensor::COUNT],
     pub collision: [bool; CharacterSensor::COUNT],

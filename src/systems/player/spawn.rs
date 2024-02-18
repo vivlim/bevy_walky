@@ -24,26 +24,25 @@ pub fn spawn_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    let mut player = commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
-        material: materials.add(Color::rgb_u8(124, 0, 255).into()),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
-        ..default()
-    });
-    player
-        .insert(RigidBody::Kinematic)
-        .insert(Collider::ball(0.35))
-        // Cast the player shape downwards to detect when the player is grounded
-        .insert(
-            ShapeCaster::new(
-                Collider::ball(0.35),
-                Vector::ZERO,
-                Quaternion::default(),
-                Vector::NEG_Y,
-            )
-            .with_max_time_of_impact(0.11)
-            .with_max_hits(1),
+    let mut player = commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
+            material: materials.add(Color::rgb_u8(124, 0, 255).into()),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        },
+        RigidBody::Kinematic,
+        Collider::ball(0.35),
+        ShapeCaster::new(
+            Collider::ball(0.35),
+            Vector::ZERO,
+            Quaternion::default(),
+            Vector::NEG_Y,
         )
+        .with_max_time_of_impact(0.11)
+        .with_max_hits(1),
+    ));
+    player
         .insert(PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
             air_speed: crate::components::player::physics::AirSpeed::InAir(0.0),
@@ -76,8 +75,7 @@ pub fn spawn_player(
         })
         .insert(ViewpointMappedInput {
             move_input: Vec2::ZERO,
-        })
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
+        });
 
     let player_id = player.id();
 
@@ -85,7 +83,7 @@ pub fn spawn_player(
         sensors: CharacterSensor::iter()
             .map(|s| {
                 let bundle = sensor_bundle(s);
-                let sensor = commands.spawn(bundle);
+                let sensor = commands.spawn((bundle, SpatialBundle::default()));
                 sensor.id()
             })
             .collect::<Vec<Entity>>()
@@ -95,5 +93,8 @@ pub fn spawn_player(
         character: player_id,
     };
 
-    commands.entity(player_id).insert(sensors);
+    commands
+        .entity(player_id)
+        //.push_children(&sensors.sensors)
+        .insert(sensors);
 }

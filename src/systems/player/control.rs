@@ -48,15 +48,18 @@ pub fn character_movement(
         cursor_delta += event.delta;
     }
 
-    const mouse_look_factor: f32 = 0.001;
-    if cursor_delta.length() > 0.3 {
-        for mut c in &mut camera_targets {
-            if c.active {
-                c.pitch += cursor_delta.y * mouse_look_factor;
-                c.yaw += cursor_delta.x * mouse_look_factor;
-            }
-        }
-    }
+    // disable mouse look
+    /*
+       const mouse_look_factor: f32 = 0.001;
+       if cursor_delta.length() > 0.3 {
+           for mut c in &mut camera_targets {
+               if c.active {
+                   c.pitch += cursor_delta.y * mouse_look_factor;
+                   c.yaw += cursor_delta.x * mouse_look_factor;
+               }
+           }
+       }
+    */
 }
 
 pub fn character_gamepad(
