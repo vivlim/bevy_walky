@@ -16,6 +16,7 @@ pub enum CharacterSensor {
 pub struct CharacterSensorArray {
     pub sensors: [Entity; CharacterSensor::COUNT],
     pub collision: [bool; CharacterSensor::COUNT],
+    pub character: Entity,
 }
 
 /// Marks some sensor entities as character sensors, for queries

@@ -24,26 +24,13 @@ pub fn spawn_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    let sensors = CharacterSensorArray {
-        sensors: CharacterSensor::iter()
-            .map(|s| {
-                let bundle = sensor_bundle(s);
-                let sensor = commands.spawn(bundle);
-                sensor.id()
-            })
-            .collect::<Vec<Entity>>()
-            .try_into()
-            .unwrap(),
-        collision: [false; CharacterSensor::COUNT],
-    };
-
-    commands
-        .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
-            material: materials.add(Color::rgb_u8(124, 0, 255).into()),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
-            ..default()
-        })
+    let mut player = commands.spawn(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
+        material: materials.add(Color::rgb_u8(124, 0, 255).into()),
+        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        ..default()
+    });
+    player
         .insert(RigidBody::Kinematic)
         .insert(Collider::ball(0.35))
         // Cast the player shape downwards to detect when the player is grounded
@@ -90,6 +77,23 @@ pub fn spawn_player(
         .insert(ViewpointMappedInput {
             move_input: Vec2::ZERO,
         })
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)))
-        .insert(sensors);
+        .insert(TransformBundle::from(Transform::from_xyz(0.0, 1.0, 0.0)));
+
+    let player_id = player.id();
+
+    let sensors = CharacterSensorArray {
+        sensors: CharacterSensor::iter()
+            .map(|s| {
+                let bundle = sensor_bundle(s);
+                let sensor = commands.spawn(bundle);
+                sensor.id()
+            })
+            .collect::<Vec<Entity>>()
+            .try_into()
+            .unwrap(),
+        collision: [false; CharacterSensor::COUNT],
+        character: player_id,
+    };
+
+    commands.entity(player_id).insert(sensors);
 }
