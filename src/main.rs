@@ -31,7 +31,7 @@ fn render_plugin() -> RenderPlugin {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn render_plugin() {
+fn render_plugin() -> RenderPlugin {
     RenderPlugin {
         render_creation: RenderCreation::Automatic(Default::default()),
     }
