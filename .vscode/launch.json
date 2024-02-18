@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'hedgehog'",
+            "name": "Debug executable 'bevy_walky'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=hedgehog",
-                    "--package=hedgehog"
+                    "--bin=bevy_walky",
+                    "--package=bevy_walky"
                 ],
                 "filter": {
-                    "name": "hedgehog",
+                    "name": "bevy_walky",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'hedgehog'",
+            "name": "Debug unit tests in executable 'bevy_walky'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=hedgehog",
-                    "--package=hedgehog"
+                    "--bin=bevy_walky",
+                    "--package=bevy_walky"
                 ],
                 "filter": {
-                    "name": "hedgehog",
+                    "name": "bevy_walky",
                     "kind": "bin"
                 }
             },
