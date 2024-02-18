@@ -1,8 +1,9 @@
 pub mod components;
 pub mod systems;
 
-use bevy::prelude::*;
+use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 use bevy::transform::TransformSystem;
+use bevy::{prelude::*, render::RenderPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_xpbd_3d::prelude::*;
 use components::camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput};
@@ -18,18 +19,40 @@ use systems::{
     world::camera::{project_input_camera, update_camera},
 };
 
+#[cfg(target_os = "windows")]
+fn render_plugin() -> RenderPlugin {
+    // workaround for error spam on windows: https://github.com/bevyengine/bevy/issues/9975#issuecomment-1848050580
+    RenderPlugin {
+        render_creation: RenderCreation::Automatic(WgpuSettings {
+            backends: Some(Backends::DX12),
+            ..default()
+        }),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn render_plugin() {
+    RenderPlugin {
+        render_creation: RenderCreation::Automatic(Default::default()),
+    }
+}
+
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                // fill the entire browser window
-                fit_canvas_to_parent: true,
-                // don't hijack keyboard shortcuts like F5, F6, F12, Ctrl+R etc.
-                prevent_default_event_handling: false,
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        // fill the entire browser window
+                        fit_canvas_to_parent: true,
+                        // don't hijack keyboard shortcuts like F5, F6, F12, Ctrl+R etc.
+                        prevent_default_event_handling: false,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(render_plugin()),
+        )
         .add_plugins(LookTransformPlugin)
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(UnrealCameraPlugin::default())
