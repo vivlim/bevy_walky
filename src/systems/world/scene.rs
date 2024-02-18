@@ -59,25 +59,26 @@ pub fn setup_scene(
         RigidBody::Static,
     ));
 
-    commands.spawn((
-        SceneBundle {
-            // The model was made by RayMarch, licenced under CC0-1.0, and can be found here:
-            // https://github.com/RayMarch/ferris3d
-            scene: asset_server.load("ferris.glb#Scene0"),
-            transform: Transform::from_xyz(0.0, 4.0, 0.0).with_scale(Vec3::splat(2.0)),
-            ..default()
-        },
-        // Create colliders using convex decomposition.
-        // This takes longer than creating a trimesh or convex hull collider,
-        // but is more performant for collision detection.
-        AsyncSceneCollider::new(Some(ComputedCollider::ConvexDecomposition(
-            VHACDParameters::default(),
-        )))
-        // Make the arms heavier to make it easier to stand upright
-        .with_density_for_name("armL_mesh", 5.0)
-        .with_density_for_name("armR_mesh", 5.0),
-        RigidBody::Dynamic,
-    ));
+    // ferris collider for testing
+    // commands.spawn((
+    //     SceneBundle {
+    //         // The model was made by RayMarch, licenced under CC0-1.0, and can be found here:
+    //         // https://github.com/RayMarch/ferris3d
+    //         scene: asset_server.load("ferris.glb#Scene0"),
+    //         transform: Transform::from_xyz(0.0, 4.0, 0.0).with_scale(Vec3::splat(2.0)),
+    //         ..default()
+    //     },
+    //     // Create colliders using convex decomposition.
+    //     // This takes longer than creating a trimesh or convex hull collider,
+    //     // but is more performant for collision detection.
+    //     AsyncSceneCollider::new(Some(ComputedCollider::ConvexDecomposition(
+    //         VHACDParameters::default(),
+    //     )))
+    //     // Make the arms heavier to make it easier to stand upright
+    //     .with_density_for_name("armL_mesh", 5.0)
+    //     .with_density_for_name("armR_mesh", 5.0),
+    //     RigidBody::Dynamic,
+    // ));
 
     // .insert(Collider::from_bevy_mesh(
     //     asset_server.load("walky_objs.glb#Mesh0"),
@@ -114,11 +115,11 @@ pub fn setup_physics(
             ..default()
         })
         .insert(RigidBody::Kinematic)
-        .insert(Collider::capsule(1.0, 0.5))
+        .insert(Collider::ball(0.35))
         // Cast the player shape downwards to detect when the player is grounded
         .insert(
             ShapeCaster::new(
-                Collider::capsule(0.9, 0.35),
+                Collider::ball(0.35),
                 Vector::ZERO,
                 Quaternion::default(),
                 Vector::NEG_Y,
@@ -128,7 +129,7 @@ pub fn setup_physics(
         )
         .insert(PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
-            air_speed: crate::components::player::physics::AirSpeed::Grounded,
+            air_speed: crate::components::player::physics::AirSpeed::InAir(0.0),
         })
         .insert(PlatformingCharacterPhysicsAccel {
             ground_acceleration: Vec2::ZERO,
