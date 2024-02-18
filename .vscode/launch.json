@@ -20,7 +20,7 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/src"
         },
         {
             "type": "lldb",

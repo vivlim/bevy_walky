@@ -69,8 +69,12 @@ fn main() {
         .add_systems(Startup, systems::world::camera::setup_camera)
         .add_systems(Startup, systems::world::scene::setup_scene)
         .add_systems(Startup, systems::world::scene::setup_physics)
-        .add_systems(Update, systems::player::physics::character_movement)
-        .add_systems(Update, systems::player::physics::character_gamepad)
+        .add_systems(
+            Update,
+            systems::world::physics_fixup::fixup_nested_colliders,
+        )
+        .add_systems(Update, systems::player::control::character_movement)
+        .add_systems(Update, systems::player::control::character_gamepad)
         .add_systems(Update, update_camera)
         .add_systems(Update, project_input_camera)
         .add_systems(

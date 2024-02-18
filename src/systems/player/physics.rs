@@ -11,127 +11,46 @@ use crate::components::{
     },
 };
 
-pub fn character_movement(
-    mut character_control: Query<(&mut PlatformingCharacterControl, &mut ViewpointMappedInput)>,
-    mut camera_targets: Query<&mut OrbitCameraTarget>,
-    keys: Res<Input<KeyCode>>,
-    mut mouse: EventReader<MouseMotion>,
+pub fn update_platforming_accel_from_controls(
+    mut query: Query<(
+        &mut PlatformingCharacterPhysicsAccel,
+        &PlatformingCharacterPhysics,
+        &mut PlatformingCharacterControl,
+        &PlatformingCharacterValues,
+    )>,
 ) {
-    if keys.just_pressed(KeyCode::Space) {
-        // jump
-        //controller.translation = Some(Vec3::new(0.0, 1.5, 0.0));
-    } else {
-        // todo: apply gravity instead of just setting this
-        //controller.translation = Some(Vec3::new(0.0, -0.5, 0.0));
-    }
-    let mut keyboardDirection = Vec2::new(0.0, 0.0);
-    if keys.pressed(KeyCode::Up) {
-        keyboardDirection += Vec2 { x: 0.0, y: 1.0 }
-    }
-    if keys.pressed(KeyCode::Down) {
-        keyboardDirection += Vec2 { x: 0.0, y: -1.0 }
-    }
-    if keys.pressed(KeyCode::Left) {
-        keyboardDirection += Vec2 { x: -1.0, y: 0.0 }
-    }
-    if keys.pressed(KeyCode::Right) {
-        keyboardDirection += Vec2 { x: 1.0, y: 0.0 }
-    }
-    if keyboardDirection.length() > 0.0 {
-        for (_, mut vmi) in character_control.iter_mut() {
-            vmi.move_input = keyboardDirection.normalize_or_zero();
-        }
-    }
-
-    let mut cursor_delta = Vec2::ZERO;
-    for event in mouse.read() {
-        cursor_delta += event.delta;
-    }
-
-    const mouse_look_factor: f32 = 0.001;
-    if cursor_delta.length() > 0.3 {
-        for mut c in &mut camera_targets {
-            if c.active {
-                c.pitch += cursor_delta.y * mouse_look_factor;
-                c.yaw += cursor_delta.x * mouse_look_factor;
-            }
-        }
-    }
-}
-
-pub fn character_gamepad(
-    mut character_control: Query<(&mut PlatformingCharacterControl, &mut ViewpointMappedInput)>,
-    mut camera_targets: Query<&mut OrbitCameraTarget>,
-    axes: Res<Axis<GamepadAxis>>,
-    buttons: Res<Input<GamepadButton>>,
-    gamepads: Res<Gamepads>,
-) {
-    for gamepad in gamepads.iter() {
-        // The joysticks are represented using a separate axis for X and Y
-        let axis_lx = GamepadAxis {
-            gamepad,
-            axis_type: GamepadAxisType::LeftStickX,
-        };
-        let axis_ly = GamepadAxis {
-            gamepad,
-            axis_type: GamepadAxisType::LeftStickY,
-        };
-        let axis_rx = GamepadAxis {
-            gamepad,
-            axis_type: GamepadAxisType::RightStickX,
-        };
-        let axis_ry = GamepadAxis {
-            gamepad,
-            axis_type: GamepadAxisType::RightStickY,
-        };
-        if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
-            // combine X and Y into one vector
-            let left_stick_pos = Vec2::new(x, y);
-            //info!("{:?} LeftStickX value is {}", gamepad, left_stick_pos);
-
-            // Example: check if the stick is pushed up
-            if left_stick_pos.length() > 0.3 {
-                for (_, mut vmi) in character_control.iter_mut() {
-                    vmi.move_input = left_stick_pos.normalize_or_zero();
+    for (mut accel, platforming, mut control, values) in query.iter_mut() {
+        if control.move_input.length() > 0.0 {
+            // Moving in a direction.
+            let mut accel_amount = values.acceleration_speed;
+            // If moving in a direction opposite the player's ground speed, apply deceleration
+            // speed too.
+            if platforming.ground_speed.length() > 0.0 {
+                let angle_between_input_and_speed =
+                    platforming.ground_speed.angle_between(control.move_input);
+                if angle_between_input_and_speed.abs() > PI / 2.0 {
+                    accel_amount += values.deceleration_speed;
                 }
             }
-        }
-        if let (Some(rx), Some(ry)) = (axes.get(axis_rx), axes.get(axis_ry)) {
-            if f32::abs(ry) > 0.1 {
-                for mut c in &mut camera_targets {
-                    //info!("adjusting camera pitch");
-                    c.pitch -= ry * 0.007
-                }
-            }
-            if f32::abs(rx) > 0.1 {
-                for mut c in &mut camera_targets {
-                    //info!("adjusting camera yaw");
-                    c.yaw -= rx * 0.01
-                }
-            }
-        }
-        // In a real game, the buttons would be configurable, but here we hardcode them
-        let jump_button = GamepadButton {
-            gamepad,
-            button_type: GamepadButtonType::South,
-        };
-        let heal_button = GamepadButton {
-            gamepad,
-            button_type: GamepadButtonType::East,
-        };
+            accel.ground_acceleration = accel_amount * control.move_input;
+            accel.ground_friction = 0.0;
 
-        // If jump was pressed and is now released, update state
-        for (mut pcc, _) in character_control.iter_mut() {
-            if pcc.jump_pressed && !buttons.pressed(jump_button) {
-                pcc.jump_pressed = false;
-            }
+            // Consume the input
+            control.move_input = Vec2::ZERO;
+        } else {
+            accel.ground_acceleration = Vec2::ZERO;
+            accel.ground_friction = values.friction_speed;
         }
-        // If jump was just pressed, update state
-        if buttons.just_pressed(jump_button) {
-            // button just pressed: make the player jump
-            for (mut pcc, _) in character_control.iter_mut() {
-                pcc.jump_pressed = true;
+
+        match (&platforming.air_speed, control.jump_pressed) {
+            (AirSpeed::Grounded, true) => {
+                accel.air_acceleration = values.jump_speed;
             }
+            (AirSpeed::InAir(_), false) => {
+                accel.air_acceleration = 0.0; // TODO: this blocks any contribution to air accel
+                                              // other than jumping.
+            }
+            _ => (),
         }
     }
 }
@@ -201,50 +120,6 @@ pub fn update_platforming_physics(
     }
 }
 
-pub fn update_platforming_accel_from_controls(
-    mut query: Query<(
-        &mut PlatformingCharacterPhysicsAccel,
-        &PlatformingCharacterPhysics,
-        &mut PlatformingCharacterControl,
-        &PlatformingCharacterValues,
-    )>,
-) {
-    for (mut accel, platforming, mut control, values) in query.iter_mut() {
-        if control.move_input.length() > 0.0 {
-            // Moving in a direction.
-            let mut accel_amount = values.acceleration_speed;
-            // If moving in a direction opposite the player's ground speed, apply deceleration
-            // speed too.
-            if platforming.ground_speed.length() > 0.0 {
-                let angle_between_input_and_speed =
-                    platforming.ground_speed.angle_between(control.move_input);
-                if angle_between_input_and_speed.abs() > PI / 2.0 {
-                    accel_amount += values.deceleration_speed;
-                }
-            }
-            accel.ground_acceleration = accel_amount * control.move_input;
-            accel.ground_friction = 0.0;
-
-            // Consume the input
-            control.move_input = Vec2::ZERO;
-        } else {
-            accel.ground_acceleration = Vec2::ZERO;
-            accel.ground_friction = values.friction_speed;
-        }
-
-        match (&platforming.air_speed, control.jump_pressed) {
-            (AirSpeed::Grounded, true) => {
-                accel.air_acceleration = values.jump_speed;
-            }
-            (AirSpeed::InAir(_), false) => {
-                accel.air_acceleration = 0.0; // TODO: this blocks any contribution to air accel
-                                              // other than jumping.
-            }
-            _ => (),
-        }
-    }
-}
-
 pub fn update_platforming_kinematic_from_physics(
     mut query: Query<(
         &PlatformingCharacterPhysics,
@@ -279,7 +154,6 @@ pub fn handle_collisions(
     collisions: Res<Collisions>,
     mut bodies: Query<(
         Option<&RigidBody>,
-        Option<&ColliderParent>,
         &mut Position,
         &Rotation,
         Option<&mut PlatformingCharacterPhysics>,
@@ -294,7 +168,7 @@ pub fn handle_collisions(
             continue;
         }
         if let Ok(
-            [(rb1, cp1, mut position1, rotation1, mut maybe_physics1, _), (rb2, cp2, mut position2, _, mut maybe_physics2, _)],
+            [(rb1, mut position1, rotation1, mut maybe_physics1, _), (rb2, mut position2, _, mut maybe_physics2, _)],
         ) = bodies.get_many_mut([contacts.entity1, contacts.entity2])
         {
             for manifold in contacts.manifolds.iter() {
@@ -302,42 +176,6 @@ pub fn handle_collisions(
                     if contact.penetration <= Scalar::EPSILON {
                         continue;
                     }
-
-                    // TODO: pretty sure the perf of having to do get_component here is awful,
-                    // write a component that attaches RigidBody::Static to any child with a
-                    // collider that belongs to a static rigid body
-                    let rb1 = match (rb1, cp1) {
-                        (None, Some(p)) => match scene_bodies.get_component::<RigidBody>(p.get()) {
-                            Ok(rb) => Some(rb),
-                            Err(e) => {
-                                warn!("failed to get parent rigid body for {:?}: {:?}", p.get(), e);
-                                None
-                            }
-                        },
-                        (Some(r), _) => Some(r),
-                        (None, None) => {
-                            warn!(
-                                "a colliding object was not a rigid body or parented to something"
-                            );
-                            None
-                        }
-                    };
-                    let rb2 = match (rb2, cp2) {
-                        (None, Some(p)) => match scene_bodies.get_component::<RigidBody>(p.get()) {
-                            Ok(rb) => Some(rb),
-                            Err(e) => {
-                                warn!("failed to get parent rigid body for {:?}: {:?}", p.get(), e);
-                                None
-                            }
-                        },
-                        (Some(r), _) => Some(r),
-                        (None, None) => {
-                            warn!(
-                                "a colliding object was not a rigid body or parented to something"
-                            );
-                            None
-                        }
-                    };
 
                     if let (Some(rb1), Some(rb2)) = (rb1, rb2) {
                         if rb1.is_kinematic() && !rb2.is_kinematic() {
