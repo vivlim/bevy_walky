@@ -73,6 +73,10 @@ fn main() {
             Update,
             systems::world::physics_fixup::fixup_nested_colliders,
         )
+        .add_systems(
+            Update,
+            systems::world::physics_fixup::reapply_collider_transform,
+        )
         .add_systems(Update, systems::player::control::character_movement)
         .add_systems(Update, systems::player::control::character_gamepad)
         .add_systems(Update, update_camera)

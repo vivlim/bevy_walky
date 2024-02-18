@@ -25,7 +25,10 @@ pub fn fixup_nested_colliders(
                 );
                 let rb = parent.clone();
                 commands.entity(e).insert(rb);
-                commands.entity(e).insert(collider_transform.clone());
+                commands.entity(e).insert(ReapplyColliderTransform {
+                    desired: collider_transform.clone(),
+                    lgtm_remaining: 5,
+                });
             }
             Err(err) => {
                 warn!("Failed to get parent rigidbody for {:?}: {:?}", e, err);
@@ -36,5 +39,33 @@ pub fn fixup_nested_colliders(
     }
 }
 
+// Crudely counteract collider_backend::update_collider_parents' tendency to reset collider transforms after we add a rigidbody to a child
+pub fn reapply_collider_transform(
+    mut to_reapply_to: Query<(&mut ReapplyColliderTransform, &ColliderTransform, Entity)>,
+    mut commands: Commands,
+) {
+    for (mut reapply, current, entity) in to_reapply_to.iter_mut() {
+        // If the transforms are different, reapply
+        if reapply.desired != *current {
+            info!(
+                "Reapplying collider transform {:?} over {:?} for entity {:?}",
+                reapply, current, entity
+            );
+            commands.entity(entity).insert(reapply.desired.clone());
+        } else {
+            reapply.lgtm_remaining -= 1;
+            if (reapply.lgtm_remaining <= 0) {
+                commands.entity(entity).remove::<ReapplyColliderTransform>(); // you can rest now
+            }
+        }
+    }
+}
+
 #[derive(Component, Reflect)]
 pub struct ColliderFixupVisited {}
+
+#[derive(Component, Reflect, Debug)]
+pub struct ReapplyColliderTransform {
+    desired: ColliderTransform,
+    lgtm_remaining: u8,
+}
