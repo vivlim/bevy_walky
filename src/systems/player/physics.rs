@@ -5,9 +5,13 @@ use bevy_xpbd_3d::{math::Scalar, prelude::*};
 
 use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappedInput},
-    player::physics::{
-        AirSpeed, KinematicCharacterPhysics, PlatformingCharacterControl,
-        PlatformingCharacterPhysics, PlatformingCharacterPhysicsAccel, PlatformingCharacterValues,
+    player::{
+        physics::{
+            AirSpeed, KinematicCharacterPhysics, PlatformingCharacterAnimationFlags,
+            PlatformingCharacterControl, PlatformingCharacterPhysics,
+            PlatformingCharacterPhysicsAccel, PlatformingCharacterValues,
+        },
+        sensors::{CharacterSensor, CharacterSensorArray},
     },
 };
 
@@ -17,10 +21,12 @@ pub fn update_platforming_accel_from_controls(
         &PlatformingCharacterPhysics,
         &mut PlatformingCharacterControl,
         &PlatformingCharacterValues,
+        &mut PlatformingCharacterAnimationFlags,
     )>,
 ) {
-    for (mut accel, platforming, mut control, values) in query.iter_mut() {
+    for (mut accel, platforming, mut control, values, mut animation_flags) in query.iter_mut() {
         if control.move_input.length() > 0.0 {
+            control.facing_2d = control.move_input;
             // Moving in a direction.
             let mut accel_amount = values.acceleration_speed;
             // If moving in a direction opposite the player's ground speed, apply deceleration
@@ -30,6 +36,9 @@ pub fn update_platforming_accel_from_controls(
                     platforming.ground_speed.angle_between(control.move_input);
                 if angle_between_input_and_speed.abs() > PI / 2.0 {
                     accel_amount += values.deceleration_speed;
+                    animation_flags.skidding = true;
+                } else {
+                    animation_flags.skidding = false;
                 }
             }
             accel.ground_acceleration = accel_amount * control.move_input;
@@ -199,6 +208,95 @@ pub fn handle_collisions(
                     }
                 }
             }
+        }
+    }
+}
+
+pub fn update_floor(
+    mut characters: Query<(
+        &CharacterSensorArray,
+        &PlatformingCharacterControl,
+        &mut Transform,
+        &GlobalTransform,
+    )>,
+    targets: Query<(
+        &GlobalTransform,
+        With<Collider>,
+        Without<PlatformingCharacterControl>,
+    )>,
+    mut gizmos: Gizmos,
+) {
+    for (mut sensor_array, control, mut transform, global_transform) in characters.iter_mut() {
+        // determine slope
+        match (
+            sensor_array.collisions[CharacterSensor::FloorFront as usize],
+            sensor_array.collisions[CharacterSensor::FloorBack as usize],
+        ) {
+            (Some(front), Some(back)) => {
+                let direction = Vec3 {
+                    x: control.facing_2d.x,
+                    y: 0.0,
+                    z: control.facing_2d.y,
+                };
+                let (front_target, _, _) = targets.get(front.entity).unwrap();
+                let (back_target, _, _) = targets.get(back.entity).unwrap();
+                // let front_point = global_transform.transform_point(front.point1);
+                // let back_point = global_transform.transform_point(back.point1);
+                // let front_normal = front_target.transform_point(front.normal1);
+                // let back_normal = back_target.transform_point(back.normal1);
+                let front_point = front.point1;
+                let back_point = back.point1;
+                let front_normal = front.normal1;
+                let back_normal = back.normal1;
+                let direction_angle = control.facing_2d.angle_between(Vec2::Y);
+                let floor_sensor_back_to_front = Vec3::normalize(front_point - back_point);
+                let floor_normals = Vec3::normalize(front_normal + back_normal);
+                let up = floor_normals.reject_from_normalized(floor_sensor_back_to_front);
+
+                back_point.angle_between(front_point);
+
+                //gizmos.ray(transform.translation, (up * 2.0), Color::ALICE_BLUE);
+                //let mut target = transform.clone();
+                let rotation = //Quat::from_rotation_arc(Vec3::X, floor_sensor_back_to_front)
+                    //* Quat::from_rotation_arc(Vec3::Y, up)
+                     Quat::from_rotation_arc(back_point, front_point) *
+                     Quat::from_axis_angle(up, direction_angle);
+                info!("angle {:?} quat: {:?}", direction_angle, rotation);
+                if !rotation.is_nan() {
+                    transform.rotation = rotation;
+                }
+
+                //target.look_at(transform.translation + direction, up);
+                //transform.look_at(transform.translation + direction, up);
+                gizmos.ray(
+                    transform.translation,
+                    rotation.mul_vec3(Vec3::Z) * 2.0,
+                    Color::PURPLE,
+                );
+                gizmos.ray(
+                    transform.translation
+                        + Vec3 {
+                            x: 0.0,
+                            y: 1.0,
+                            z: 0.0,
+                        },
+                    floor_sensor_back_to_front,
+                    Color::PURPLE,
+                );
+                gizmos.ray(
+                    transform.translation
+                        + Vec3 {
+                            x: 0.0,
+                            y: 1.0,
+                            z: 0.0,
+                        },
+                    up,
+                    Color::ALICE_BLUE,
+                );
+            }
+            (None, Some(_)) => (),
+            (Some(_), None) => (),
+            (None, None) => (),
         }
     }
 }

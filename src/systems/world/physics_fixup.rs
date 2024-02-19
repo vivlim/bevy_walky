@@ -15,7 +15,7 @@ pub fn fixup_nested_colliders(
     for (mut nc, e, collider_transform, _, _) in nested_colliders.iter_mut() {
         match scene_bodies.get(nc.get()) {
             Ok((parent, parent_transform, collider_parent_entity, _, _)) => {
-                info!(
+                /*info!(
                     "Cloning parent rigidbody ({:?} from {:?}) onto {:?}",
                     parent, collider_parent_entity, e
                 );
@@ -23,6 +23,7 @@ pub fn fixup_nested_colliders(
                     "child transform {:?}, parent {:?}",
                     collider_transform, parent_transform
                 );
+                */
                 let rb = parent.clone();
                 commands.entity(e).insert(rb);
                 commands.entity(e).insert(ReapplyColliderTransform {
@@ -47,10 +48,11 @@ pub fn reapply_collider_transform(
     for (mut reapply, current, entity) in to_reapply_to.iter_mut() {
         // If the transforms are different, reapply
         if reapply.desired != *current {
+            /*
             info!(
                 "Reapplying collider transform {:?} over {:?} for entity {:?}",
                 reapply, current, entity
-            );
+            ); */
             commands.entity(entity).insert(reapply.desired.clone());
         } else {
             reapply.lgtm_remaining -= 1;

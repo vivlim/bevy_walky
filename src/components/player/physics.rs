@@ -3,6 +3,7 @@ use bevy::prelude::*;
 #[derive(Component, Reflect)]
 pub struct PlatformingCharacterControl {
     pub move_input: Vec2,
+    pub facing_2d: Vec2,
     pub jump_pressed: bool,
 }
 
@@ -27,6 +28,11 @@ pub struct PlatformingCharacterPhysicsAccel {
     pub ground_acceleration: Vec2,
     pub ground_friction: f32,
     pub air_acceleration: f32,
+}
+
+#[derive(Component, Reflect)]
+pub struct PlatformingCharacterAnimationFlags {
+    pub skidding: bool,
 }
 
 #[derive(Component, Reflect)]

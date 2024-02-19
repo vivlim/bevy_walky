@@ -5,6 +5,7 @@ use bevy_xpbd_3d::prelude::*;
 use strum::EnumCount;
 use strum::IntoEnumIterator;
 
+use crate::components::player::physics::PlatformingCharacterAnimationFlags;
 use crate::components::player::sensors::CharacterSensor;
 use crate::components::player::sensors::CharacterSensorArray;
 use crate::components::{
@@ -54,6 +55,7 @@ pub fn spawn_player(
         })
         .insert(PlatformingCharacterControl {
             move_input: Vec2::ZERO,
+            facing_2d: Vec2::ZERO,
             jump_pressed: false,
         })
         .insert(PlatformingCharacterValues {
@@ -64,6 +66,7 @@ pub fn spawn_player(
             gravity: -0.2,
             jump_speed: 2.0,
         })
+        .insert(PlatformingCharacterAnimationFlags { skidding: false })
         .insert(OrbitCameraTarget {
             distance: 5.0,
             active: true,
@@ -78,23 +81,24 @@ pub fn spawn_player(
         });
 
     let player_id = player.id();
+    info!("Player is entity {:?}", player_id);
 
     let sensors = CharacterSensorArray {
         sensors: CharacterSensor::iter()
             .map(|s| {
-                let bundle = sensor_bundle(s);
-                let sensor = commands.spawn((bundle, SpatialBundle::default()));
+                let bundle = sensor_bundle(s, player_id);
+                let sensor = commands.spawn((bundle));
                 sensor.id()
             })
             .collect::<Vec<Entity>>()
             .try_into()
             .unwrap(),
-        collision: [false; CharacterSensor::COUNT],
+        collisions: [None; CharacterSensor::COUNT],
         character: player_id,
     };
 
     commands
         .entity(player_id)
-        //.push_children(&sensors.sensors)
+        .push_children(&sensors.sensors)
         .insert(sensors);
 }
