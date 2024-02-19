@@ -25,7 +25,7 @@ fn render_plugin() -> RenderPlugin {
     // workaround for error spam on windows: https://github.com/bevyengine/bevy/issues/9975#issuecomment-1848050580
     RenderPlugin {
         render_creation: RenderCreation::Automatic(WgpuSettings {
-            backends: Some(Backends::DX12),
+            backends: Some(Backends::VULKAN), // vulkan spends less time compiling shaders, which is *important* when iterating
             ..default()
         }),
     }
