@@ -20,6 +20,7 @@ pub struct PlatformingCharacterValues {
 #[derive(Component, Reflect)]
 pub struct PlatformingCharacterPhysics {
     pub ground_speed: Vec2,
+    pub ground_direction: Vec2,
     pub air_speed: AirSpeed,
 }
 

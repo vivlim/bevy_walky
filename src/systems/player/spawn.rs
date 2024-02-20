@@ -48,6 +48,7 @@ pub fn spawn_player(
     player
         .insert(PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
+            ground_direction: Vec2::X,
             air_speed: crate::components::player::physics::AirSpeed::InAir(0.0),
         })
         .insert(PlatformingCharacterPhysicsAccel {
@@ -57,7 +58,7 @@ pub fn spawn_player(
         })
         .insert(PlatformingCharacterControl {
             move_input: Vec2::ZERO,
-            facing_2d: Vec2::ZERO,
+            facing_2d: Vec2::X,
             jump_pressed: false,
         })
         .insert(PlatformingCharacterValues {

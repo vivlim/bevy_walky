@@ -115,9 +115,9 @@ fn main() {
                 .after(PhysicsSet::Sync)
                 .before(TransformSystem::TransformPropagate),
         )
-        .add_systems(
-            PostUpdate,
-            handle_collisions.after(update_platforming_kinematic_from_physics),
-        )
+        // .add_systems(
+        //     PostUpdate,
+        //     handle_collisions.after(update_platforming_kinematic_from_physics),
+        // )
         .run();
 }

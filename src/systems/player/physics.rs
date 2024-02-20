@@ -131,83 +131,114 @@ pub fn update_platforming_physics(
 
 pub fn update_platforming_kinematic_from_physics(
     mut query: Query<(
-        &PlatformingCharacterPhysics,
+        &mut PlatformingCharacterPhysics,
         &RigidBody,
         &mut LinearVelocity,
         &Rotation,
-        &Transform,
+        &mut Transform,
         &FloorInfo,
         &GlobalTransform,
+        &PlatformingCharacterControl,
     )>,
     mut gizmos: Gizmos,
     spatial_query: SpatialQuery,
 ) {
-    for (physics, rb, mut lv, rot, transform, floor_info, global_transform) in query.iter_mut() {
+    for (mut physics, rb, mut lv, rot, mut transform, floor_info, global_transform, control) in
+        query.iter_mut()
+    {
         if physics.ground_speed.length() > 1.0 {
-            // Map the ground speed into 3d space
-            let mut speed_vec_3d = Vec3 {
-                x: physics.ground_speed.x,
+            physics.ground_direction = physics.ground_speed.normalize();
+        }
+        let mut direction = 
+            // Map the ground direction into 3d space
+            Vec3 {
+                x: physics.ground_direction.x,
                 y: 0.0,
-                z: physics.ground_speed.y,
-            };
+                z: physics.ground_direction.y,
+            }
+        ;
 
-            let direction = speed_vec_3d.normalize();
+        // Cast ahead and behind to get the slope from where we're standing now.
+        let slope_cast_direction = Vec3::NEG_Y;
+        let slope_cast_distance = 2.0;
+        let radius = 0.5;
+        let ground_cast_overshoot = 0.05;
+        let front_slope_cast_origin = global_transform.translation() + (direction * (radius));
+        let back_slope_cast_origin = global_transform.translation() + (direction * (radius * -1.0));
+        let ground_cast_origin = global_transform.translation();
+        let front_slope_cast = spatial_query.cast_ray(
+            front_slope_cast_origin,
+            slope_cast_direction,
+            slope_cast_distance,
+            true,
+            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+        );
+        let back_slope_cast = spatial_query.cast_ray(
+            back_slope_cast_origin,
+            slope_cast_direction,
+            slope_cast_distance,
+            true,
+            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+        );
+        let ground_cast = spatial_query.cast_ray(
+            back_slope_cast_origin,
+            slope_cast_direction,
+            radius + ground_cast_overshoot,
+            true,
+            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+        );
 
-            // Cast ahead and behind to get the slope from where we're standing now.
-            let slope_cast_direction = Vec3::NEG_Y;
-            let slope_cast_distance = 2.0;
-            let front_slope_cast_origin = global_transform.translation() + (direction * 0.2);
-            let back_slope_cast_origin = global_transform.translation() + (direction * -0.2);
-            let front_slope_cast = spatial_query.cast_ray(
-                front_slope_cast_origin,
-                slope_cast_direction,
-                slope_cast_distance,
-                true,
-                SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-            );
-            let back_slope_cast = spatial_query.cast_ray(
-                back_slope_cast_origin,
-                slope_cast_direction,
-                slope_cast_distance,
-                true,
-                SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-            );
+        match (front_slope_cast, back_slope_cast) {
+            (Some(front), Some(back)) => {
+                let front_contact =
+                    front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
+                gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
+                let back_contact =
+                    back_slope_cast_origin + (slope_cast_direction * back.time_of_impact);
+                gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
 
-            match (front_slope_cast, back_slope_cast) {
-                (Some(front), Some(back)) => {
-                    let front_contact =
-                        front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
-                    gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
-                    let back_contact =
-                        back_slope_cast_origin + (slope_cast_direction * back.time_of_impact);
-                    gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
+                let slope = Vec3::normalize(front_contact - back_contact);
 
-                    let slope = Vec3::normalize(front_contact - back_contact);
+                gizmos.ray(back_contact, slope, Color::GREEN);
 
-                    gizmos.ray(back_contact, slope, Color::GREEN);
+                let slope_quat = Quat::from_rotation_arc(direction, slope);
+                info!("slope quat {:?}", slope_quat);
+                direction = slope_quat.mul_vec3(direction);
+            }
+            _ => {
+                gizmos.circle(
+                    global_transform.translation(),
+                    Vec3::Y,
+                    1.0,
+                    Color::ALICE_BLUE,
+                );
+            }
+        }
 
-                    let slope_quat = Quat::from_rotation_arc(direction, slope);
-                    info!("slope quat {:?}", slope_quat);
-                    speed_vec_3d = slope_quat.mul_vec3(speed_vec_3d);
+        match ground_cast {
+            Some(ground) => {
+                if ground.time_of_impact <= radius {
+                    if let AirSpeed::InAir(_) = physics.air_speed {
+                        physics.air_speed = AirSpeed::Grounded;
+                    }
                 }
-                _ => {
-                    gizmos.circle(
-                        global_transform.translation(),
-                        Vec3::Y,
-                        1.0,
-                        Color::ALICE_BLUE,
-                    );
+                if ground.time_of_impact < radius {
+                    let dist_inside_ground = radius - ground.time_of_impact;
+                    transform.translation = transform.translation + (ground.normal.normalize() * dist_inside_ground);
+
+                }
+            },
+            None => {
+                if let AirSpeed::Grounded = physics.air_speed {
+                    physics.air_speed = AirSpeed::InAir(0.0);
                 }
             }
 
-            lv.0 = speed_vec_3d;
-
-            //gizmos.ray(transform.translation, lv., Color::RED);
-        } else {
-            lv.x = 0.0;
-            lv.z = 0.0;
         }
 
+        lv.0 = direction * physics.ground_speed.length();
+
+        //gizmos.ray(transform.translation, lv., Color::RED);
         if let AirSpeed::InAir(air_speed) = physics.air_speed {
             lv.y = air_speed;
         }
