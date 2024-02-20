@@ -5,6 +5,7 @@ use bevy_xpbd_3d::prelude::*;
 use strum::EnumCount;
 use strum::IntoEnumIterator;
 
+use crate::components::player::physics::FloorInfo;
 use crate::components::player::physics::PlatformingCharacterAnimationFlags;
 use crate::components::player::sensors::CharacterSensor;
 use crate::components::player::sensors::CharacterSensorArray;
@@ -29,7 +30,7 @@ pub fn spawn_player(
     let mut player = commands.spawn((
         PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
-            material: materials.add(Color::rgb_u8(124, 0, 255).into()),
+            material: materials.add(Color::rgba_u8(124, 0, 255, 69).into()),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..default()
         },
@@ -80,6 +81,12 @@ pub fn spawn_player(
         .insert(ViewpointMappedInput {
             move_input: Vec2::ZERO,
         })
+        .insert(FloorInfo {
+            up: Vec3::default(),
+            floor_sensor_origin_slope: Vec3::default(),
+            floor_sensor_cast_slope: Vec3::default(),
+            slope_pivot: Vec3::default(),
+        })
         .insert(CollisionLayers::new(
             [MyCollisionLayers::Player],
             [MyCollisionLayers::Enemy, MyCollisionLayers::Environment],
@@ -88,32 +95,32 @@ pub fn spawn_player(
     let player_id = player.id();
     info!("Player is entity {:?}", player_id);
 
-    let sensors = CharacterSensorArray {
-        sensors: CharacterSensor::iter()
-            .map(|s| {
-                let bundle = sensor_bundle(s, player_id);
-                let sensor = commands.spawn((bundle));
-                sensor.id()
-            })
-            .collect::<Vec<Entity>>()
-            .try_into()
-            .unwrap(),
-        collisions: [None; CharacterSensor::COUNT],
-        character: player_id,
-    };
+    // let sensors = CharacterSensorArray {
+    //     sensors: CharacterSensor::iter()
+    //         .map(|s| {
+    //             let bundle = sensor_bundle(s, player_id);
+    //             let sensor = commands.spawn((bundle));
+    //             sensor.id()
+    //         })
+    //         .collect::<Vec<Entity>>()
+    //         .try_into()
+    //         .unwrap(),
+    //     collisions: [None; CharacterSensor::COUNT],
+    //     character: player_id,
+    // };
 
-    let sc = sensors.sensors.clone();
+    // let sc = sensors.sensors.clone();
 
-    let sensor_entity = commands
-        .spawn((
-            sensors,
-            SpatialBundle::default(),
-            Collider::default(), // Must be a collider for child colliders to work
-            CollisionLayers::new(
-                [MyCollisionLayers::Player],
-                [MyCollisionLayers::Environment, MyCollisionLayers::Enemy],
-            ),
-        ))
-        .push_children(&sc)
-        .set_parent(player_id);
+    // let sensor_entity = commands
+    //     .spawn((
+    //         sensors,
+    //         SpatialBundle::default(),
+    //         Collider::default(), // Must be a collider for child colliders to work
+    //         CollisionLayers::new(
+    //             [MyCollisionLayers::Player],
+    //             [MyCollisionLayers::Environment, MyCollisionLayers::Enemy],
+    //         ),
+    //     ))
+    //     .push_children(&sc)
+    //     .set_parent(player_id);
 }

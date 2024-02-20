@@ -7,11 +7,11 @@ use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappedInput},
     player::{
         physics::{
-            AirSpeed, KinematicCharacterPhysics, PlatformingCharacterAnimationFlags,
+            AirSpeed, FloorInfo, KinematicCharacterPhysics, PlatformingCharacterAnimationFlags,
             PlatformingCharacterControl, PlatformingCharacterPhysics,
             PlatformingCharacterPhysicsAccel, PlatformingCharacterValues,
         },
-        sensors::{CharacterSensor, CharacterSensorArray},
+        sensors::{CharacterSensor, CharacterSensorArray, MyCollisionLayers},
     },
 };
 
@@ -136,14 +136,85 @@ pub fn update_platforming_kinematic_from_physics(
         &mut LinearVelocity,
         &Rotation,
         &Transform,
+        &FloorInfo,
+        &GlobalTransform,
     )>,
     mut gizmos: Gizmos,
+    spatial_query: SpatialQuery,
 ) {
-    for (physics, rb, mut lv, rot, transform) in query.iter_mut() {
+    for (physics, rb, mut lv, rot, transform, floor_info, global_transform) in query.iter_mut() {
         if physics.ground_speed.length() > 1.0 {
             // Map the ground speed into 3d space
-            lv.x = physics.ground_speed.x;
-            lv.z = physics.ground_speed.y;
+            let speed_vec_3d = Vec3 {
+                x: physics.ground_speed.x,
+                y: 0.0,
+                z: physics.ground_speed.y,
+            };
+
+            // Cast ahead and behind to get the slope from where we're standing now.
+            let slope_cast_direction = Vec3::NEG_Y;
+            let slope_cast_distance = 2.0;
+            let front_slope_cast_origin = global_transform.translation()
+                + (speed_vec_3d.normalize()
+                    * Vec3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.2,
+                    });
+            let back_slope_cast_origin = global_transform.translation()
+                + (speed_vec_3d.normalize()
+                    * Vec3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: -0.2,
+                    });
+            let front_slope_cast = spatial_query.cast_ray(
+                front_slope_cast_origin,
+                slope_cast_direction,
+                slope_cast_distance,
+                true,
+                SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+            );
+            let back_slope_cast = spatial_query.cast_ray(
+                back_slope_cast_origin,
+                slope_cast_direction,
+                slope_cast_distance,
+                true,
+                SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+            );
+
+            match (front_slope_cast, back_slope_cast) {
+                (Some(front), Some(back)) => {
+                    gizmos.sphere(
+                        front_slope_cast_origin + (slope_cast_direction * front.time_of_impact),
+                        Quat::default(),
+                        0.1,
+                        Color::LIME_GREEN,
+                    );
+                    gizmos.sphere(
+                        back_slope_cast_origin + (slope_cast_direction * back.time_of_impact),
+                        Quat::default(),
+                        0.1,
+                        Color::DARK_GREEN,
+                    );
+                    info!("collide with {:?} and {:?}", front.entity, back.entity);
+                }
+                _ => {
+                    gizmos.circle(
+                        global_transform.translation(),
+                        Vec3::Y,
+                        1.0,
+                        Color::ALICE_BLUE,
+                    );
+                }
+            }
+
+            let slope_quat = Quat::from_rotation_arc(
+                floor_info.floor_sensor_origin_slope,
+                floor_info.floor_sensor_cast_slope,
+            );
+
+            lv.0 = slope_quat.mul_vec3(speed_vec_3d);
 
             //gizmos.ray(transform.translation, lv., Color::RED);
         } else {
@@ -213,21 +284,31 @@ pub fn handle_collisions(
 }
 
 pub fn update_floor(
-    mut characters: Query<(&PlatformingCharacterControl, Without<CharacterSensorArray>)>,
-    mut sensors: Query<(
+    mut characters: Query<(
+        &PlatformingCharacterControl,
+        &PlatformingCharacterPhysics,
+        &mut FloorInfo,
+        Without<CharacterSensorArray>,
+    )>,
+    mut sensor_arrays: Query<(
         &mut CharacterSensorArray,
         &mut Transform,
+        &GlobalTransform,
         Without<PlatformingCharacterControl>,
+        Without<ShapeCaster>,
     )>,
     targets: Query<(
         &GlobalTransform,
         With<Collider>,
         Without<PlatformingCharacterControl>,
+        Without<ShapeCaster>,
     )>,
+    sensors: Query<(&GlobalTransform, &ShapeCaster)>,
     mut gizmos: Gizmos,
 ) {
-    for (mut sensor_array, mut transform, _) in sensors.iter_mut() {
-        let (control, _) = characters.get(sensor_array.character).unwrap();
+    for (mut sensor_array, mut transform, global_transform, ..) in sensor_arrays.iter_mut() {
+        let (control, platforming_physics, mut floor_info, ..) =
+            characters.get_mut(sensor_array.character).unwrap();
         // determine slope
         match (
             sensor_array.collisions[CharacterSensor::FloorFront as usize],
@@ -239,8 +320,18 @@ pub fn update_floor(
                     y: 0.0,
                     z: control.facing_2d.y,
                 };
-                match (targets.get(front.entity), targets.get(back.entity)) {
-                    (Ok((front_target, _, _)), Ok((back_target, _, _))) => {
+                match (
+                    targets.get(front.entity),
+                    targets.get(back.entity),
+                    sensors.get(sensor_array.sensors[CharacterSensor::FloorFront as usize]),
+                    sensors.get(sensor_array.sensors[CharacterSensor::FloorBack as usize]),
+                ) {
+                    (
+                        Ok((front_target, ..)),
+                        Ok((back_target, ..)),
+                        Ok((front_sensor, front_sensor_caster, ..)),
+                        Ok((back_sensor, back_sensor_caster, ..)),
+                    ) => {
                         // let front_point = global_transform.transform_point(front.point1);
                         // let back_point = global_transform.transform_point(back.point1);
                         // let front_normal = front_target.transform_point(front.normal1);
@@ -254,15 +345,29 @@ pub fn update_floor(
                         let floor_normals = Vec3::normalize(front_normal + back_normal);
                         let up = floor_normals.reject_from_normalized(floor_sensor_back_to_front);
 
+                        let floor_sensor_origins_back_to_front =
+                            Vec3::normalize(front_sensor_caster.origin - back_sensor_caster.origin);
+
+                        let slope_pivot = floor_sensor_back_to_front.cross(up);
+
+                        //let up = Vec3::normalize(Vec3::ZERO - front_point - back_point);
+
                         back_point.angle_between(front_point);
+                        floor_info.up = up;
+                        floor_info.floor_sensor_origin_slope = floor_sensor_origins_back_to_front;
+                        floor_info.floor_sensor_cast_slope = floor_sensor_back_to_front;
+                        floor_info.slope_pivot = slope_pivot;
 
                         //gizmos.ray(transform.translation, (up * 2.0), Color::ALICE_BLUE);
                         //let mut target = transform.clone();
                         let rotation = //Quat::from_rotation_arc(Vec3::X, floor_sensor_back_to_front)
                     //* Quat::from_rotation_arc(Vec3::Y, up)
-                     Quat::from_rotation_arc(back_point, front_point) *
-                     Quat::from_axis_angle(up, direction_angle);
-                        info!("angle {:?} quat: {:?}", direction_angle, rotation);
+                     //Quat::from_rotation_arc(back_point, front_point) *
+                     //Quat::from_axis_angle(up, direction_angle);
+                     //Quat::from_rotation_arc(Vec3::Z, Vec3 { x: control.facing_2d.x, y: 0.0, z: control.facing_2d.y })
+                      //Quat::from_rotation_arc(floor_sensor_origins_back_to_front, floor_sensor_back_to_front);
+                      Quat::from_rotation_arc(Vec3::Z, Vec3 { x: platforming_physics.ground_speed.x, y: 0.0, z: platforming_physics.ground_speed.y}.normalize());
+                        //info!("angle {:?} quat: {:?}", direction_angle, rotation);
                         if !rotation.is_nan() {
                             transform.rotation = rotation;
                         }
@@ -270,12 +375,12 @@ pub fn update_floor(
                         //target.look_at(transform.translation + direction, up);
                         //transform.look_at(transform.translation + direction, up);
                         gizmos.ray(
-                            transform.translation,
+                            global_transform.translation(),
                             rotation.mul_vec3(Vec3::Z) * 2.0,
                             Color::PURPLE,
                         );
                         gizmos.ray(
-                            transform.translation
+                            global_transform.translation()
                                 + Vec3 {
                                     x: 0.0,
                                     y: 1.0,
@@ -285,7 +390,7 @@ pub fn update_floor(
                             Color::PURPLE,
                         );
                         gizmos.ray(
-                            transform.translation
+                            global_transform.translation()
                                 + Vec3 {
                                     x: 0.0,
                                     y: 1.0,
@@ -293,6 +398,16 @@ pub fn update_floor(
                                 },
                             up,
                             Color::ALICE_BLUE,
+                        );
+                        gizmos.ray(
+                            global_transform.translation()
+                                + Vec3 {
+                                    x: 0.0,
+                                    y: 1.0,
+                                    z: 0.0,
+                                },
+                            slope_pivot,
+                            Color::TEAL,
                         );
                     }
                     _ => {

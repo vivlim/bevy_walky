@@ -11,7 +11,7 @@ pub fn sensor_bundle(sensor: CharacterSensor, character_entity: Entity) -> impl 
     (
         match sensor {
             CharacterSensor::FloorFront => ShapeCaster::new(
-                Collider::cuboid(0.25, 0.02, 0.05),
+                Collider::ball(0.1),
                 Vec3 {
                     x: 0.0,
                     y: -0.10,
@@ -21,7 +21,7 @@ pub fn sensor_bundle(sensor: CharacterSensor, character_entity: Entity) -> impl 
                 Vec3::NEG_Y,
             ),
             CharacterSensor::FloorBack => ShapeCaster::new(
-                Collider::cuboid(0.25, 0.02, 0.05),
+                Collider::ball(0.1),
                 Vec3 {
                     x: 0.0,
                     y: -0.1,

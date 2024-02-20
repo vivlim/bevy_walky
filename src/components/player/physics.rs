@@ -46,3 +46,11 @@ pub enum AirSpeed {
     Grounded,
     InAir(f32),
 }
+
+#[derive(Component, Reflect)]
+pub struct FloorInfo {
+    pub up: Vec3,
+    pub floor_sensor_origin_slope: Vec3,
+    pub floor_sensor_cast_slope: Vec3,
+    pub slope_pivot: Vec3,
+}

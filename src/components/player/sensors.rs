@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::{Component, Entity},
+    prelude::*,
     reflect::{impl_type_path, Reflect},
 };
 use bevy_xpbd_3d::prelude::{PhysicsLayer, RayHitData, ShapeHitData};

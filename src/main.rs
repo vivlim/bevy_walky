@@ -92,10 +92,10 @@ fn main() {
                 .after(PhysicsSet::Sync)
                 .before(TransformSystem::TransformPropagate),
         )
-        .add_systems(
-            PostProcessCollisions,
-            systems::player::sensors::update_sensors, //.after(systems::player::sensors::position_sensors),
-        )
+        // .add_systems(
+        //     PostProcessCollisions,
+        //     systems::player::sensors::update_sensors, //.after(systems::player::sensors::position_sensors),
+        // )
         // .add_systems(
         //     PostProcessCollisions,
         //     systems::player::sensors::position_sensors
@@ -109,11 +109,14 @@ fn main() {
             update_platforming_physics.after(update_platforming_accel_from_controls),
         )
         .add_systems(
-            FixedUpdate,
-            update_platforming_kinematic_from_physics.after(update_platforming_physics),
+            PostUpdate,
+            update_platforming_kinematic_from_physics
+                .after(update_platforming_physics)
+                .after(PhysicsSet::Sync)
+                .before(TransformSystem::TransformPropagate),
         )
         .add_systems(
-            FixedUpdate,
+            PostUpdate,
             handle_collisions.after(update_platforming_kinematic_from_physics),
         )
         .run();
