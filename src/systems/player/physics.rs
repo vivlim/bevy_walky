@@ -145,19 +145,19 @@ pub fn update_platforming_kinematic_from_physics(
     for (physics, rb, mut lv, rot, transform, floor_info, global_transform) in query.iter_mut() {
         if physics.ground_speed.length() > 1.0 {
             // Map the ground speed into 3d space
-            let speed_vec_3d = Vec3 {
+            let mut speed_vec_3d = Vec3 {
                 x: physics.ground_speed.x,
                 y: 0.0,
                 z: physics.ground_speed.y,
             };
 
+            let direction = speed_vec_3d.normalize();
+
             // Cast ahead and behind to get the slope from where we're standing now.
             let slope_cast_direction = Vec3::NEG_Y;
             let slope_cast_distance = 2.0;
-            let front_slope_cast_origin =
-                global_transform.translation() + (speed_vec_3d.normalize() * 0.2);
-            let back_slope_cast_origin =
-                global_transform.translation() + (speed_vec_3d.normalize() * -0.2);
+            let front_slope_cast_origin = global_transform.translation() + (direction * 0.2);
+            let back_slope_cast_origin = global_transform.translation() + (direction * -0.2);
             let front_slope_cast = spatial_query.cast_ray(
                 front_slope_cast_origin,
                 slope_cast_direction,
@@ -175,19 +175,20 @@ pub fn update_platforming_kinematic_from_physics(
 
             match (front_slope_cast, back_slope_cast) {
                 (Some(front), Some(back)) => {
-                    gizmos.sphere(
-                        front_slope_cast_origin + (slope_cast_direction * front.time_of_impact),
-                        Quat::default(),
-                        0.1,
-                        Color::LIME_GREEN,
-                    );
-                    gizmos.sphere(
-                        back_slope_cast_origin + (slope_cast_direction * back.time_of_impact),
-                        Quat::default(),
-                        0.1,
-                        Color::DARK_GREEN,
-                    );
-                    info!("collide with {:?} and {:?}", front.entity, back.entity);
+                    let front_contact =
+                        front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
+                    gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
+                    let back_contact =
+                        back_slope_cast_origin + (slope_cast_direction * back.time_of_impact);
+                    gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
+
+                    let slope = Vec3::normalize(front_contact - back_contact);
+
+                    gizmos.ray(back_contact, slope, Color::GREEN);
+
+                    let slope_quat = Quat::from_rotation_arc(direction, slope);
+                    info!("slope quat {:?}", slope_quat);
+                    speed_vec_3d = slope_quat.mul_vec3(speed_vec_3d);
                 }
                 _ => {
                     gizmos.circle(
@@ -199,12 +200,7 @@ pub fn update_platforming_kinematic_from_physics(
                 }
             }
 
-            let slope_quat = Quat::from_rotation_arc(
-                floor_info.floor_sensor_origin_slope,
-                floor_info.floor_sensor_cast_slope,
-            );
-
-            lv.0 = slope_quat.mul_vec3(speed_vec_3d);
+            lv.0 = speed_vec_3d;
 
             //gizmos.ray(transform.translation, lv., Color::RED);
         } else {
@@ -214,8 +210,6 @@ pub fn update_platforming_kinematic_from_physics(
 
         if let AirSpeed::InAir(air_speed) = physics.air_speed {
             lv.y = air_speed;
-        } else {
-            lv.y = 0.0;
         }
     }
 }
