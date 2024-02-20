@@ -154,20 +154,10 @@ pub fn update_platforming_kinematic_from_physics(
             // Cast ahead and behind to get the slope from where we're standing now.
             let slope_cast_direction = Vec3::NEG_Y;
             let slope_cast_distance = 2.0;
-            let front_slope_cast_origin = global_transform.translation()
-                + (speed_vec_3d.normalize()
-                    * Vec3 {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.2,
-                    });
-            let back_slope_cast_origin = global_transform.translation()
-                + (speed_vec_3d.normalize()
-                    * Vec3 {
-                        x: 0.0,
-                        y: 0.0,
-                        z: -0.2,
-                    });
+            let front_slope_cast_origin =
+                global_transform.translation() + (speed_vec_3d.normalize() * 0.2);
+            let back_slope_cast_origin =
+                global_transform.translation() + (speed_vec_3d.normalize() * -0.2);
             let front_slope_cast = spatial_query.cast_ray(
                 front_slope_cast_origin,
                 slope_cast_direction,
