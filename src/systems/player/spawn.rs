@@ -8,6 +8,7 @@ use strum::IntoEnumIterator;
 use crate::components::player::physics::PlatformingCharacterAnimationFlags;
 use crate::components::player::sensors::CharacterSensor;
 use crate::components::player::sensors::CharacterSensorArray;
+use crate::components::player::sensors::MyCollisionLayers;
 use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput},
     player::physics::{
@@ -78,7 +79,11 @@ pub fn spawn_player(
         })
         .insert(ViewpointMappedInput {
             move_input: Vec2::ZERO,
-        });
+        })
+        .insert(CollisionLayers::new(
+            [MyCollisionLayers::Player],
+            [MyCollisionLayers::Enemy, MyCollisionLayers::Environment],
+        ));
 
     let player_id = player.id();
     info!("Player is entity {:?}", player_id);
@@ -97,8 +102,18 @@ pub fn spawn_player(
         character: player_id,
     };
 
-    commands
-        .entity(player_id)
-        .push_children(&sensors.sensors)
-        .insert(sensors);
+    let sc = sensors.sensors.clone();
+
+    let sensor_entity = commands
+        .spawn((
+            sensors,
+            SpatialBundle::default(),
+            Collider::default(), // Must be a collider for child colliders to work
+            CollisionLayers::new(
+                [MyCollisionLayers::Player],
+                [MyCollisionLayers::Environment, MyCollisionLayers::Enemy],
+            ),
+        ))
+        .push_children(&sc)
+        .set_parent(player_id);
 }

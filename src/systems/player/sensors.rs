@@ -4,7 +4,7 @@ use strum::IntoEnumIterator;
 
 use crate::components::player::{
     physics::{PlatformingCharacterControl, PlatformingCharacterPhysics},
-    sensors::{CharacterSensor, CharacterSensorArray, CharacterSensorCaster},
+    sensors::{CharacterSensor, CharacterSensorArray, CharacterSensorCaster, MyCollisionLayers},
 };
 
 pub fn sensor_bundle(sensor: CharacterSensor, character_entity: Entity) -> impl Bundle {
@@ -31,7 +31,11 @@ pub fn sensor_bundle(sensor: CharacterSensor, character_entity: Entity) -> impl 
                 Vec3::NEG_Y,
             ),
         }
-        .with_query_filter(SpatialQueryFilter::new().without_entities([character_entity])), // don't count self-collisions
+        .with_query_filter(SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment])), // don't count self-collisions
+        CollisionLayers::new(
+            [MyCollisionLayers::Player],
+            [MyCollisionLayers::Environment, MyCollisionLayers::Enemy],
+        ),
         CharacterSensorCaster {
             kind: sensor,
             character_entity,
@@ -39,51 +43,41 @@ pub fn sensor_bundle(sensor: CharacterSensor, character_entity: Entity) -> impl 
         SpatialBundle::default(),
     )
 }
-pub fn position_sensors(
-    characters: Query<(
-        &CharacterSensorArray,
-        &mut Transform,
-        &PlatformingCharacterControl,
-        With<PlatformingCharacterPhysics>,
-    )>,
-    mut casters: Query<(
-        &mut ShapeCaster,
-        &CharacterSensorCaster,
-        &mut Transform, // transform doesn't seem to matter.
-        Without<CharacterSensorArray>,
-        Without<PlatformingCharacterPhysics>,
-    )>,
-) {
-    for (mut caster, sensor, mut transform, _, _) in casters.iter_mut() {
-        let (array, char_transform, control, _) = characters.get(sensor.character_entity).unwrap();
-    }
-}
 
 pub fn update_sensors(
     mut characters: Query<(
-        &mut CharacterSensorArray,
         Entity,
         &PlatformingCharacterControl,
         &mut Transform,
         With<PlatformingCharacterPhysics>,
     )>,
-    mut casters: Query<(&ShapeCaster, &CharacterSensorCaster, &ShapeHits)>,
+    mut sensors: Query<(
+        &mut CharacterSensorArray,
+        Without<PlatformingCharacterControl>,
+    )>,
+    mut casters: Query<(
+        &ShapeCaster,
+        &CharacterSensorCaster,
+        &ShapeHits,
+        &GlobalTransform,
+    )>,
     mut gizmos: Gizmos,
 ) {
-    for (mut sensor_array, sensor_owner, control, transform, _) in characters.iter_mut() {
+    for (mut sensor_array, _) in sensors.iter_mut() {
+        let (sensor_owner, control, transform, _) =
+            characters.get_mut(sensor_array.character).unwrap();
         for sensor in CharacterSensor::iter() {
             let sensor_index = sensor as usize;
             let caster_id = sensor_array.sensors[sensor_index];
             match casters.get(caster_id) {
-                Ok((caster, _, _hits)) => {
-                    let (caster, _, hits) = casters.get(caster_id).unwrap();
+                Ok((caster, _, hits, gt)) => {
                     if hits.is_empty() {
-                        gizmos.sphere(caster.origin, Quat::default(), 5.0, Color::GREEN);
+                        gizmos.sphere(gt.translation(), Quat::default(), 0.5, Color::GREEN);
                         sensor_array.collisions[sensor_index] = None;
                         continue;
                     }
                     for hit in hits.iter() {
-                        gizmos.sphere(caster.origin, Quat::default(), 5.0, Color::ORANGE);
+                        gizmos.sphere(gt.translation(), Quat::default(), 0.5, Color::ORANGE);
                         gizmos.line(hit.point1, hit.point2, Color::ORANGE);
                         sensor_array.collisions[sensor_index] = Some(hit.clone());
                         break;

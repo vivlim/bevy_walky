@@ -213,11 +213,11 @@ pub fn handle_collisions(
 }
 
 pub fn update_floor(
-    mut characters: Query<(
-        &CharacterSensorArray,
-        &PlatformingCharacterControl,
+    mut characters: Query<(&PlatformingCharacterControl, Without<CharacterSensorArray>)>,
+    mut sensors: Query<(
+        &mut CharacterSensorArray,
         &mut Transform,
-        &GlobalTransform,
+        Without<PlatformingCharacterControl>,
     )>,
     targets: Query<(
         &GlobalTransform,
@@ -226,7 +226,8 @@ pub fn update_floor(
     )>,
     mut gizmos: Gizmos,
 ) {
-    for (mut sensor_array, control, mut transform, global_transform) in characters.iter_mut() {
+    for (mut sensor_array, mut transform, _) in sensors.iter_mut() {
+        let (control, _) = characters.get(sensor_array.character).unwrap();
         // determine slope
         match (
             sensor_array.collisions[CharacterSensor::FloorFront as usize],
@@ -238,65 +239,70 @@ pub fn update_floor(
                     y: 0.0,
                     z: control.facing_2d.y,
                 };
-                let (front_target, _, _) = targets.get(front.entity).unwrap();
-                let (back_target, _, _) = targets.get(back.entity).unwrap();
-                // let front_point = global_transform.transform_point(front.point1);
-                // let back_point = global_transform.transform_point(back.point1);
-                // let front_normal = front_target.transform_point(front.normal1);
-                // let back_normal = back_target.transform_point(back.normal1);
-                let front_point = front.point1;
-                let back_point = back.point1;
-                let front_normal = front.normal1;
-                let back_normal = back.normal1;
-                let direction_angle = control.facing_2d.angle_between(Vec2::Y);
-                let floor_sensor_back_to_front = Vec3::normalize(front_point - back_point);
-                let floor_normals = Vec3::normalize(front_normal + back_normal);
-                let up = floor_normals.reject_from_normalized(floor_sensor_back_to_front);
+                match (targets.get(front.entity), targets.get(back.entity)) {
+                    (Ok((front_target, _, _)), Ok((back_target, _, _))) => {
+                        // let front_point = global_transform.transform_point(front.point1);
+                        // let back_point = global_transform.transform_point(back.point1);
+                        // let front_normal = front_target.transform_point(front.normal1);
+                        // let back_normal = back_target.transform_point(back.normal1);
+                        let front_point = front.point1;
+                        let back_point = back.point1;
+                        let front_normal = front.normal1;
+                        let back_normal = back.normal1;
+                        let direction_angle = control.facing_2d.angle_between(Vec2::Y);
+                        let floor_sensor_back_to_front = Vec3::normalize(front_point - back_point);
+                        let floor_normals = Vec3::normalize(front_normal + back_normal);
+                        let up = floor_normals.reject_from_normalized(floor_sensor_back_to_front);
 
-                back_point.angle_between(front_point);
+                        back_point.angle_between(front_point);
 
-                //gizmos.ray(transform.translation, (up * 2.0), Color::ALICE_BLUE);
-                //let mut target = transform.clone();
-                let rotation = //Quat::from_rotation_arc(Vec3::X, floor_sensor_back_to_front)
+                        //gizmos.ray(transform.translation, (up * 2.0), Color::ALICE_BLUE);
+                        //let mut target = transform.clone();
+                        let rotation = //Quat::from_rotation_arc(Vec3::X, floor_sensor_back_to_front)
                     //* Quat::from_rotation_arc(Vec3::Y, up)
                      Quat::from_rotation_arc(back_point, front_point) *
                      Quat::from_axis_angle(up, direction_angle);
-                info!("angle {:?} quat: {:?}", direction_angle, rotation);
-                if !rotation.is_nan() {
-                    transform.rotation = rotation;
-                }
+                        info!("angle {:?} quat: {:?}", direction_angle, rotation);
+                        if !rotation.is_nan() {
+                            transform.rotation = rotation;
+                        }
 
-                //target.look_at(transform.translation + direction, up);
-                //transform.look_at(transform.translation + direction, up);
-                gizmos.ray(
-                    transform.translation,
-                    rotation.mul_vec3(Vec3::Z) * 2.0,
-                    Color::PURPLE,
-                );
-                gizmos.ray(
-                    transform.translation
-                        + Vec3 {
-                            x: 0.0,
-                            y: 1.0,
-                            z: 0.0,
-                        },
-                    floor_sensor_back_to_front,
-                    Color::PURPLE,
-                );
-                gizmos.ray(
-                    transform.translation
-                        + Vec3 {
-                            x: 0.0,
-                            y: 1.0,
-                            z: 0.0,
-                        },
-                    up,
-                    Color::ALICE_BLUE,
-                );
+                        //target.look_at(transform.translation + direction, up);
+                        //transform.look_at(transform.translation + direction, up);
+                        gizmos.ray(
+                            transform.translation,
+                            rotation.mul_vec3(Vec3::Z) * 2.0,
+                            Color::PURPLE,
+                        );
+                        gizmos.ray(
+                            transform.translation
+                                + Vec3 {
+                                    x: 0.0,
+                                    y: 1.0,
+                                    z: 0.0,
+                                },
+                            floor_sensor_back_to_front,
+                            Color::PURPLE,
+                        );
+                        gizmos.ray(
+                            transform.translation
+                                + Vec3 {
+                                    x: 0.0,
+                                    y: 1.0,
+                                    z: 0.0,
+                                },
+                            up,
+                            Color::ALICE_BLUE,
+                        );
+                    }
+                    _ => {
+                        warn!("fail");
+                    }
+                }
             }
-            (None, Some(_)) => (),
-            (Some(_), None) => (),
-            (None, None) => (),
+            (None, Some(_)) => warn!("no collision for front sensor"),
+            (Some(_), None) => warn!("no collision for back sensor"),
+            (None, None) => warn!("no collision for front or back sensor"),
         }
     }
 }

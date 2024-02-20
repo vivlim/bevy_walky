@@ -10,11 +10,18 @@ pub fn fixup_nested_colliders(
         Without<ColliderFixupVisited>,
     )>,
     mut commands: Commands,
-    scene_bodies: Query<(&RigidBody, &Transform, Entity, &Children, &Handle<Scene>)>,
+    scene_bodies: Query<(
+        &RigidBody,
+        &CollisionLayers,
+        &Transform,
+        Entity,
+        &Children,
+        &Handle<Scene>,
+    )>,
 ) {
     for (mut nc, e, collider_transform, _, _) in nested_colliders.iter_mut() {
         match scene_bodies.get(nc.get()) {
-            Ok((parent, parent_transform, collider_parent_entity, _, _)) => {
+            Ok((parent, collision_layers, parent_transform, collider_parent_entity, _, _)) => {
                 /*info!(
                     "Cloning parent rigidbody ({:?} from {:?}) onto {:?}",
                     parent, collider_parent_entity, e
@@ -26,6 +33,7 @@ pub fn fixup_nested_colliders(
                 */
                 let rb = parent.clone();
                 commands.entity(e).insert(rb);
+                commands.entity(e).insert(collision_layers.clone());
                 commands.entity(e).insert(ReapplyColliderTransform {
                     desired: collider_transform.clone(),
                     lgtm_remaining: 5,

@@ -2,7 +2,7 @@ use bevy::{
     prelude::{Component, Entity},
     reflect::{impl_type_path, Reflect},
 };
-use bevy_xpbd_3d::prelude::{RayHitData, ShapeHitData};
+use bevy_xpbd_3d::prelude::{PhysicsLayer, RayHitData, ShapeHitData};
 use strum::EnumCount;
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter, EnumTable, FromRepr};
 
@@ -17,7 +17,7 @@ pub enum CharacterSensor {
 //impl_reflect!(::bevy_xpbd_3d::plugins::spatial_query::ShapeHitData);
 
 /// Collection of sensors belonging to a character
-#[derive(Component, Reflect, Debug)]
+#[derive(Component, Reflect, Clone, Debug)]
 pub struct CharacterSensorArray {
     pub sensors: [Entity; CharacterSensor::COUNT],
     #[reflect(ignore)]
@@ -30,4 +30,11 @@ pub struct CharacterSensorArray {
 pub struct CharacterSensorCaster {
     pub kind: CharacterSensor,
     pub character_entity: Entity,
+}
+
+#[derive(PhysicsLayer)]
+pub enum MyCollisionLayers {
+    Player,
+    Enemy,
+    Environment,
 }

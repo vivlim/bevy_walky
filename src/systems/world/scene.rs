@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy_xpbd_3d::math::*;
 use bevy_xpbd_3d::prelude::*;
 
+use crate::components::player::sensors::MyCollisionLayers;
 use crate::components::{
     camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput},
     player::physics::{
@@ -35,6 +36,10 @@ pub fn setup_scene(
             ..default()
         },
         AsyncCollider(ComputedCollider::ConvexHull),
+        CollisionLayers::new(
+            [MyCollisionLayers::Environment],
+            [MyCollisionLayers::Player],
+        ),
         RigidBody::Static,
     ));
     // light
@@ -56,6 +61,10 @@ pub fn setup_scene(
         AsyncSceneCollider::new(Some(ComputedCollider::ConvexDecomposition(
             VHACDParameters::default(),
         ))),
+        CollisionLayers::new(
+            [MyCollisionLayers::Environment],
+            [MyCollisionLayers::Player],
+        ),
         RigidBody::Static,
     ));
 
