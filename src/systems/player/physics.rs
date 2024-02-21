@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, ops::Mul};
 
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_xpbd_3d::{math::Scalar, prelude::*};
@@ -158,6 +158,15 @@ pub fn update_platforming_kinematic_from_physics(
             }
         ;
 
+
+        if let AirSpeed::Grounded { angle, .. } = physics.air_speed {
+            if (angle > PI/4.0 || angle < -PI/4.0){
+                physics.ground_cast_direction = direction;
+            }
+        }
+        let cast_origin_rotation = Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
+        direction = cast_origin_rotation.mul(direction);
+
         // Cast ahead and behind to get the slope from where we're standing now.
         let slope_cast_direction = physics.ground_cast_direction;
         let mut ground_cast_direction = slope_cast_direction;
@@ -182,6 +191,8 @@ pub fn update_platforming_kinematic_from_physics(
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         );
 
+        gizmos.ray(front_slope_cast_origin, slope_cast_direction * (slope_cast_distance), Color::LIME_GREEN);
+        gizmos.ray(back_slope_cast_origin, slope_cast_direction * (slope_cast_distance), Color::DARK_GREEN);
         match (front_slope_cast, back_slope_cast) {
             (Some(front), Some(back)) => {
                 let front_contact =
@@ -195,8 +206,8 @@ pub fn update_platforming_kinematic_from_physics(
 
                 gizmos.ray(back_contact, slope, Color::GREEN);
 
-                if let AirSpeed::Grounded{mut angle} = physics.air_speed {
-                    angle = direction.angle_between(slope);
+                if let AirSpeed::Grounded{ref mut angle} = physics.air_speed {
+                    *angle = direction.angle_between(slope);
                 }
 
                 let slope_quat = Quat::from_rotation_arc(direction, slope);
@@ -252,9 +263,10 @@ pub fn update_platforming_kinematic_from_physics(
                 }
             },
             None => {
-                if let AirSpeed::Grounded{..} = physics.air_speed {
-                    physics.air_speed = AirSpeed::InAir(0.0);
-                }
+                // if let AirSpeed::Grounded{..} = physics.air_speed {
+                //     physics.air_speed = AirSpeed::InAir(0.0);
+                //     physics.ground_cast_direction = Vec3::NEG_Y;
+                // }
             }
 
         }
@@ -264,6 +276,7 @@ pub fn update_platforming_kinematic_from_physics(
         //gizmos.ray(transform.translation, lv., Color::RED);
         if let AirSpeed::InAir(air_speed) = physics.air_speed {
             lv.y = air_speed;
+            physics.ground_cast_direction = Vec3::NEG_Y;
         }
     }
 }
