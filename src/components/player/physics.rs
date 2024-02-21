@@ -20,7 +20,10 @@ pub struct PlatformingCharacterValues {
 #[derive(Component, Reflect)]
 pub struct PlatformingCharacterPhysics {
     pub ground_speed: Vec2,
+    /// grounded facing
     pub ground_direction: Vec2,
+    /// direction the ground is in
+    pub ground_cast_direction: Vec3,
     pub air_speed: AirSpeed,
 }
 
@@ -44,7 +47,7 @@ pub struct KinematicCharacterPhysics {
 
 #[derive(Reflect)]
 pub enum AirSpeed {
-    Grounded,
+    Grounded { angle: f32 },
     InAir(f32),
 }
 

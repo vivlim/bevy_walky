@@ -52,7 +52,7 @@ pub fn update_platforming_accel_from_controls(
         }
 
         match (&platforming.air_speed, control.jump_pressed) {
-            (AirSpeed::Grounded, true) => {
+            (AirSpeed::Grounded{..}, true) => {
                 accel.air_acceleration = values.jump_speed;
             }
             (AirSpeed::InAir(_), false) => {
@@ -73,14 +73,14 @@ pub fn update_platforming_physics(
 ) {
     for (mut platforming, mut accel, values) in query.iter_mut() {
         if accel.air_acceleration > 0.0 {
-            if let AirSpeed::Grounded = platforming.air_speed {
+            if let AirSpeed::Grounded {..} = platforming.air_speed {
                 // Trying to jump, and on the ground.
                 platforming.air_speed = AirSpeed::InAir(accel.air_acceleration);
             }
         }
 
         let ground_accel = match platforming.air_speed {
-            AirSpeed::Grounded => accel.ground_acceleration,
+            AirSpeed::Grounded {..}=> accel.ground_acceleration,
             AirSpeed::InAir(_) => accel.ground_acceleration * 0.5,
         };
         //let initial_speed = platforming.ground_speed.length() > values.top_speed;
@@ -90,7 +90,7 @@ pub fn update_platforming_physics(
         platforming.ground_speed = platforming.ground_speed.clamp_length(0.0, values.top_speed);
 
         match platforming.air_speed {
-            AirSpeed::Grounded => {
+            AirSpeed::Grounded {..}=> {
                 // Apply friction
                 if (accel.ground_friction > 0.0) {
                     // Get friction vector - start with a unit vector that's facing the direction
@@ -159,10 +159,11 @@ pub fn update_platforming_kinematic_from_physics(
         ;
 
         // Cast ahead and behind to get the slope from where we're standing now.
-        let slope_cast_direction = Vec3::NEG_Y;
+        let slope_cast_direction = physics.ground_cast_direction;
+        let mut ground_cast_direction = slope_cast_direction;
         let slope_cast_distance = 2.0;
         let radius = 0.5;
-        let ground_cast_overshoot = 0.05;
+        let ground_cast_overshoot = 0.02;
         let front_slope_cast_origin = global_transform.translation() + (direction * (radius));
         let back_slope_cast_origin = global_transform.translation() + (direction * (radius * -1.0));
         let ground_cast_origin = global_transform.translation();
@@ -180,13 +181,6 @@ pub fn update_platforming_kinematic_from_physics(
             true,
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         );
-        let ground_cast = spatial_query.cast_ray(
-            back_slope_cast_origin,
-            slope_cast_direction,
-            radius + ground_cast_overshoot,
-            true,
-            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-        );
 
         match (front_slope_cast, back_slope_cast) {
             (Some(front), Some(back)) => {
@@ -201,9 +195,14 @@ pub fn update_platforming_kinematic_from_physics(
 
                 gizmos.ray(back_contact, slope, Color::GREEN);
 
+                if let AirSpeed::Grounded{mut angle} = physics.air_speed {
+                    angle = direction.angle_between(slope);
+                }
+
                 let slope_quat = Quat::from_rotation_arc(direction, slope);
-                info!("slope quat {:?}", slope_quat);
+                // info!("slope quat {:?}", slope_quat);
                 direction = slope_quat.mul_vec3(direction);
+                ground_cast_direction = slope_quat.mul_vec3(ground_cast_direction);
             }
             _ => {
                 gizmos.circle(
@@ -215,21 +214,45 @@ pub fn update_platforming_kinematic_from_physics(
             }
         }
 
+        gizmos.ray(ground_cast_origin, ground_cast_direction * (radius + ground_cast_overshoot), Color::BISQUE);
+        gizmos.ray(ground_cast_origin, ground_cast_direction * (radius), Color::SEA_GREEN);
+        let ground_cast = spatial_query.cast_ray(
+            ground_cast_origin,
+            ground_cast_direction,
+            radius + ground_cast_overshoot,
+            true,
+            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+        );
+
         match ground_cast {
             Some(ground) => {
-                if ground.time_of_impact <= radius {
-                    if let AirSpeed::InAir(_) = physics.air_speed {
-                        physics.air_speed = AirSpeed::Grounded;
+                match physics.air_speed {
+                    AirSpeed::Grounded { .. } => {
+                        // floating above the ground, but close enough.
+                        // pull the character into the ground so they stick to it
+                        if ground.time_of_impact > radius {
+                            let dist_away_from_ground = -1.0 * (ground.time_of_impact - radius);
+                            if dist_away_from_ground < -0.0001 {
+                                // info!("pull down by {:?}", dist_away_from_ground);
+                                transform.translation = transform.translation + (ground.normal.normalize() * dist_away_from_ground);
+                            }
+                        }
+                    },
+                    AirSpeed::InAir(_) => {
+                        if ground.time_of_impact <= radius {
+                            info!("just grounded");
+                            physics.air_speed = AirSpeed::Grounded{angle: 0.0 /* TODO: does it need to be computed here? */};
+                        }
                     }
                 }
+                // fell into the ground. push out.
                 if ground.time_of_impact < radius {
                     let dist_inside_ground = radius - ground.time_of_impact;
                     transform.translation = transform.translation + (ground.normal.normalize() * dist_inside_ground);
-
                 }
             },
             None => {
-                if let AirSpeed::Grounded = physics.air_speed {
+                if let AirSpeed::Grounded{..} = physics.air_speed {
                     physics.air_speed = AirSpeed::InAir(0.0);
                 }
             }
@@ -278,7 +301,7 @@ pub fn handle_collisions(
 
                             if let Some(ref mut physics) = maybe_physics1 {
                                 if let AirSpeed::InAir(_) = physics.air_speed {
-                                    physics.air_speed = AirSpeed::Grounded;
+                                    physics.air_speed = AirSpeed::Grounded{angle: 0.0};
                                     info!("now grounded (entity 1)");
                                 }
                             }
@@ -286,7 +309,7 @@ pub fn handle_collisions(
                             position2.0 += contact.global_normal1(rotation1) * contact.penetration;
                             if let Some(ref mut physics) = maybe_physics2 {
                                 if let AirSpeed::InAir(_) = physics.air_speed {
-                                    physics.air_speed = AirSpeed::Grounded;
+                                    physics.air_speed = AirSpeed::Grounded{angle:0.0};
                                     info!("now grounded (entity 2)");
                                 }
                             }
