@@ -51,6 +51,7 @@ pub fn spawn_player(
             ground_direction: Vec2::X,
             ground_cast_direction: Vec3::NEG_Y,
             air_speed: crate::components::player::physics::AirSpeed::InAir(0.0),
+            wall_running: false,
         })
         .insert(PlatformingCharacterPhysicsAccel {
             ground_acceleration: Vec2::ZERO,

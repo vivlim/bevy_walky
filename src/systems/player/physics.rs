@@ -161,7 +161,42 @@ pub fn update_platforming_kinematic_from_physics(
 
         if let AirSpeed::Grounded { angle, .. } = physics.air_speed {
             if (angle > PI/4.0 || angle < -PI/4.0){
-                physics.ground_cast_direction = direction;
+                // Cast a ray in the direction we are trying to go. If it hits something, use it as a new ground cast direction
+
+                if let Some(running_up_wall_cast) = spatial_query.cast_ray(
+                    global_transform.translation(),
+                    lv.0,
+                    1.0,
+                    true,
+                    SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+                ){
+                    let mut new_ground_direction = Vec3::ZERO - running_up_wall_cast.normal;
+                    if (physics.wall_running){
+                        // Leaving a wall. Keep only Y
+                        new_ground_direction.x = 0.0;
+                        new_ground_direction.z = 0.0;
+                        // Positive Y is ceiling running.
+                        if new_ground_direction.y > 0.0 {
+                            new_ground_direction.y = 1.0;
+                        }
+                        else {
+                            new_ground_direction.y = -1.0;
+                        }
+                        physics.wall_running = false;
+                    } else {
+                        // Remove y component. Only want x/z (unless we are doing ceiling running)
+                        new_ground_direction.y = 0.0;
+                        if let Some(n) = new_ground_direction.try_normalize(){
+                            new_ground_direction = n;
+                            physics.wall_running = true;
+                        } else {
+                            // Return to default (ground is down)
+                            new_ground_direction = Vec3::NEG_Y;
+                            physics.wall_running = false;
+                        }
+                    }
+                    physics.ground_cast_direction = new_ground_direction;
+                }
             }
         }
         let cast_origin_rotation = Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
@@ -169,13 +204,13 @@ pub fn update_platforming_kinematic_from_physics(
 
         // Cast ahead and behind to get the slope from where we're standing now.
         let slope_cast_direction = physics.ground_cast_direction;
-        let mut ground_cast_direction = slope_cast_direction;
         let slope_cast_distance = 2.0;
-        let radius = 0.5;
-        let ground_cast_overshoot = 0.02;
+        let radius = 0.25;
+        let ground_cast_overshoot = 0.1;
         let front_slope_cast_origin = global_transform.translation() + (direction * (radius));
         let back_slope_cast_origin = global_transform.translation() + (direction * (radius * -1.0));
         let ground_cast_origin = global_transform.translation();
+        let mut ground_cast_length = 0.0; // Set this using the longer slope cast
         let front_slope_cast = spatial_query.cast_ray(
             front_slope_cast_origin,
             slope_cast_direction,
@@ -195,6 +230,7 @@ pub fn update_platforming_kinematic_from_physics(
         gizmos.ray(back_slope_cast_origin, slope_cast_direction * (slope_cast_distance), Color::DARK_GREEN);
         match (front_slope_cast, back_slope_cast) {
             (Some(front), Some(back)) => {
+                ground_cast_length = f32::max(front.time_of_impact, back.time_of_impact);
                 let front_contact =
                     front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
                 gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
@@ -213,7 +249,6 @@ pub fn update_platforming_kinematic_from_physics(
                 let slope_quat = Quat::from_rotation_arc(direction, slope);
                 // info!("slope quat {:?}", slope_quat);
                 direction = slope_quat.mul_vec3(direction);
-                ground_cast_direction = slope_quat.mul_vec3(ground_cast_direction);
             }
             _ => {
                 gizmos.circle(
@@ -225,11 +260,11 @@ pub fn update_platforming_kinematic_from_physics(
             }
         }
 
-        gizmos.ray(ground_cast_origin, ground_cast_direction * (radius + ground_cast_overshoot), Color::BISQUE);
-        gizmos.ray(ground_cast_origin, ground_cast_direction * (radius), Color::SEA_GREEN);
+        gizmos.ray(ground_cast_origin, slope_cast_direction * (ground_cast_length + ground_cast_overshoot), Color::BISQUE);
+        gizmos.ray(ground_cast_origin + (slope_cast_direction * ground_cast_length), slope_cast_direction * ground_cast_overshoot, Color::SEA_GREEN);
         let ground_cast = spatial_query.cast_ray(
             ground_cast_origin,
-            ground_cast_direction,
+            slope_cast_direction,
             radius + ground_cast_overshoot,
             true,
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
@@ -263,10 +298,11 @@ pub fn update_platforming_kinematic_from_physics(
                 }
             },
             None => {
-                // if let AirSpeed::Grounded{..} = physics.air_speed {
-                //     physics.air_speed = AirSpeed::InAir(0.0);
-                //     physics.ground_cast_direction = Vec3::NEG_Y;
-                // }
+                if let AirSpeed::Grounded{..} = physics.air_speed {
+                    physics.air_speed = AirSpeed::InAir(0.0);
+                    physics.wall_running = false;
+                    physics.ground_cast_direction = Vec3::NEG_Y;
+                }
             }
 
         }

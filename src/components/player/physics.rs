@@ -25,6 +25,7 @@ pub struct PlatformingCharacterPhysics {
     /// direction the ground is in
     pub ground_cast_direction: Vec3,
     pub air_speed: AirSpeed,
+    pub wall_running: bool,
 }
 
 #[derive(Component, Reflect)]
