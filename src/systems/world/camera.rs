@@ -13,6 +13,17 @@ use crate::components::{
 };
 
 pub fn setup_camera(mut commands: Commands) {
+    let light = commands
+        .spawn(PointLightBundle {
+            point_light: PointLight {
+                intensity: 1500.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 3.0, 0.0),
+            ..default()
+        })
+        .id();
     commands
         .spawn(UnrealCameraBundle::new(
             smooth_bevy_cameras::controllers::unreal::UnrealCameraController::default(),
@@ -20,6 +31,7 @@ pub fn setup_camera(mut commands: Commands) {
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::Y,
         ))
+        .add_child(light)
         .insert(Camera3dBundle::default());
 }
 
@@ -93,21 +105,21 @@ pub fn project_input_camera(
         );
         let forward = orientation.forward.mul_vec3(input);
 
-        gizmos.ray(
-            transform.translation,
-            orientation.forward.mul_vec3(Vec3::X),
-            Color::RED,
-        );
-        gizmos.ray(
-            transform.translation,
-            orientation.forward.mul_vec3(Vec3::Y),
-            Color::GREEN,
-        );
-        gizmos.ray(
-            transform.translation,
-            orientation.forward.mul_vec3(Vec3::Z),
-            Color::BLUE,
-        );
+        // gizmos.ray(
+        //     transform.translation,
+        //     orientation.forward.mul_vec3(Vec3::X),
+        //     Color::RED,
+        // );
+        // gizmos.ray(
+        //     transform.translation,
+        //     orientation.forward.mul_vec3(Vec3::Y),
+        //     Color::GREEN,
+        // );
+        // gizmos.ray(
+        //     transform.translation,
+        //     orientation.forward.mul_vec3(Vec3::Z),
+        //     Color::BLUE,
+        // );
 
         let result = forward.xz().normalize_or_zero() * input.length();
         control.move_input = result;

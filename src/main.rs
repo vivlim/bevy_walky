@@ -58,7 +58,7 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(UnrealCameraPlugin::default())
         .add_plugins(PhysicsPlugins::default())
-        .add_plugins(PhysicsDebugPlugin::default())
+        //.add_plugins(PhysicsDebugPlugin::default())
         .register_type::<components::player::physics::PlatformingCharacterPhysics>()
         .register_type::<components::player::physics::PlatformingCharacterPhysicsAccel>()
         .register_type::<components::player::physics::PlatformingCharacterValues>()

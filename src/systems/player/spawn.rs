@@ -35,9 +35,9 @@ pub fn spawn_player(
             ..default()
         },
         RigidBody::Kinematic,
-        Collider::ball(0.35),
+        Collider::ball(0.25),
         ShapeCaster::new(
-            Collider::ball(0.35),
+            Collider::ball(0.25),
             Vector::ZERO,
             Quaternion::default(),
             Vector::NEG_Y,

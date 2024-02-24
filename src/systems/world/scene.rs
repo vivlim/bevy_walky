@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use bevy_xpbd_3d::math::*;
+use bevy_xpbd_3d::parry::transformation::voxelization::FillMode;
 use bevy_xpbd_3d::prelude::*;
 
 use crate::components::player::sensors::MyCollisionLayers;
@@ -35,7 +36,7 @@ pub fn setup_scene(
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..default()
         },
-        AsyncCollider(ComputedCollider::ConvexHull),
+        AsyncCollider(ComputedCollider::TriMesh),
         CollisionLayers::new(
             [MyCollisionLayers::Environment],
             [MyCollisionLayers::Player],
@@ -58,9 +59,7 @@ pub fn setup_scene(
             scene: asset_server.load("walky_objs.glb#Scene0"),
             ..default()
         },
-        AsyncSceneCollider::new(Some(ComputedCollider::ConvexDecomposition(
-            VHACDParameters::default(),
-        ))),
+        AsyncSceneCollider::new(Some(ComputedCollider::TriMesh)),
         CollisionLayers::new(
             [MyCollisionLayers::Environment],
             [MyCollisionLayers::Player],
