@@ -28,7 +28,10 @@ pub fn update_platforming_accel_from_controls(
         if control.move_input.length() > 0.0 {
             control.facing_2d = control.move_input;
             // Moving in a direction.
-            let mut accel_amount = values.acceleration_speed;
+            let mut accel_amount = match platforming.air_speed {
+                AirSpeed::Grounded { .. } => values.acceleration_speed,
+                AirSpeed::InAir(_) => values.air_acceleration_speed,
+            };
             // If moving in a direction opposite the player's ground speed, apply deceleration
             // speed too.
             if platforming.ground_speed.length() > 0.0 {
@@ -159,6 +162,7 @@ pub fn update_platforming_kinematic_from_physics(
         ;
 
 
+        // Wall running
         if let AirSpeed::Grounded { angle, .. } = physics.air_speed {
             if (angle > PI/4.0 || angle < -PI/4.0){
                 // Cast a ray in the direction we are trying to go. If it hits something, use it as a new ground cast direction
@@ -275,6 +279,9 @@ pub fn update_platforming_kinematic_from_physics(
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         );
 
+        // Set linear velocity
+        lv.0 = direction * physics.ground_speed.length();
+
         match ground_cast {
             Some(ground) => {
                 match physics.air_speed {
@@ -310,15 +317,15 @@ pub fn update_platforming_kinematic_from_physics(
             },
             None => {
                 if let AirSpeed::Grounded{..} = physics.air_speed {
-                    physics.air_speed = AirSpeed::InAir(0.0);
+                    physics.air_speed = AirSpeed::InAir(lv.y); // Use the y component of the current running speed
+                    physics.ground_speed.x = lv.x;
+                    physics.ground_speed.y = lv.z;
                     physics.wall_running = false;
                     physics.ground_cast_direction = Vec3::NEG_Y;
                 }
             }
 
         }
-
-        lv.0 = direction * physics.ground_speed.length();
 
         //gizmos.ray(transform.translation, lv., Color::RED);
         if let AirSpeed::InAir(air_speed) = physics.air_speed {

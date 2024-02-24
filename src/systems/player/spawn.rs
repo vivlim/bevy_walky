@@ -64,8 +64,9 @@ pub fn spawn_player(
             jump_pressed: false,
         })
         .insert(PlatformingCharacterValues {
-            acceleration_speed: 1.00,
-            deceleration_speed: 1.00,
+            acceleration_speed: 0.50,
+            air_acceleration_speed: 0.25,
+            deceleration_speed: 0.70,
             top_speed: 15.0,
             friction_speed: 0.30,
             gravity: -0.2,

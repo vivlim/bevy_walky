@@ -10,6 +10,7 @@ pub struct PlatformingCharacterControl {
 #[derive(Component, Reflect)]
 pub struct PlatformingCharacterValues {
     pub acceleration_speed: f32,
+    pub air_acceleration_speed: f32,
     pub deceleration_speed: f32,
     pub top_speed: f32,
     pub friction_speed: f32,
