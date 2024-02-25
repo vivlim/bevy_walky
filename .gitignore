@@ -1,2 +1,5 @@
-/target
-/scratch
+target/
+.idea/
+.DS_Store
+scratch/
+dist/
