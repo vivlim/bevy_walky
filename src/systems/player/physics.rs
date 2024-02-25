@@ -195,6 +195,7 @@ pub fn update_platforming_kinematic_from_physics(
                             physics.wall_running = false;
                         }
                     }
+                    info!("Changing ground direction to {:?}", new_ground_direction);
                     physics.ground_cast_direction = new_ground_direction;
                 }
             }
@@ -211,29 +212,9 @@ pub fn update_platforming_kinematic_from_physics(
         let slope_cast_spacing = radius;
         let desired_distance_from_ground = radius * 2.0 - obstacle_collision_radius;
         let ground_cast_overshoot = 0.1;
-        let slope_cast_translate = (slope_cast_direction * radius) * -1.0;
-        let front_slope_cast_origin = global_transform.translation()
-            + slope_cast_translate
-            + (direction * (slope_cast_spacing));
-        let back_slope_cast_origin = global_transform.translation()
-            + slope_cast_translate
-            + (direction * (slope_cast_spacing * -1.0));
-        let ground_cast_origin = global_transform.translation() + slope_cast_translate;
+        let ground_cast_origin =
+            global_transform.translation() + ((slope_cast_direction * radius) * -1.0);
         let mut ground_cast_length = desired_distance_from_ground; // Set this using the longer slope cast, if there is one. but start with the desired distance from ground
-        let front_slope_cast = spatial_query.cast_ray(
-            front_slope_cast_origin,
-            slope_cast_direction,
-            slope_cast_distance,
-            true,
-            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-        );
-        let back_slope_cast = spatial_query.cast_ray(
-            back_slope_cast_origin,
-            slope_cast_direction,
-            slope_cast_distance,
-            true,
-            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-        );
 
         gizmos.sphere(
             global_transform.translation(),
@@ -242,57 +223,45 @@ pub fn update_platforming_kinematic_from_physics(
             Color::BLACK,
         );
 
-        gizmos.ray(
-            front_slope_cast_origin,
-            slope_cast_direction * (slope_cast_distance),
-            Color::LIME_GREEN,
-        );
-        gizmos.ray(
-            back_slope_cast_origin,
-            slope_cast_direction * (slope_cast_distance),
-            Color::DARK_GREEN,
-        );
-        match (front_slope_cast, back_slope_cast) {
-            (Some(front), Some(back)) => {
-                ground_cast_length = f32::max(front.time_of_impact, back.time_of_impact);
-                let front_contact =
-                    front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
-                gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
-                let back_contact =
-                    back_slope_cast_origin + (slope_cast_direction * back.time_of_impact);
-                gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
+        /*
+               match (front_slope_cast, back_slope_cast) {
+                   (Some(front), Some(back)) => {
+                       ground_cast_length = f32::max(front.time_of_impact, back.time_of_impact);
+                       let front_contact =
+                           front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
+                       gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
+                       let back_contact =
+                           back_slope_cast_origin + (slope_cast_direction * back.time_of_impact);
+                       gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
 
-                let slope = Vec3::normalize(front_contact - back_contact);
+                       let slope = Vec3::normalize(front_contact - back_contact);
 
-                gizmos.ray(back_contact, slope, Color::GREEN);
+                       gizmos.ray(back_contact, slope, Color::GREEN);
 
-                if let AirSpeed::Grounded { ref mut angle } = physics.air_speed {
-                    *angle = direction.angle_between(slope);
-                }
+                       if let AirSpeed::Grounded { ref mut angle } = physics.air_speed {
+                           *angle = direction.angle_between(slope);
+                       }
 
-                let slope_quat = Quat::from_rotation_arc(direction, slope);
-                // info!("slope quat {:?}", slope_quat);
-                direction = slope_quat.mul_vec3(direction);
-            }
-            _ => {
-                gizmos.circle(
-                    global_transform.translation(),
-                    Vec3::Y,
-                    1.0,
-                    Color::ALICE_BLUE,
-                );
-            }
-        }
+                       let slope_quat = Quat::from_rotation_arc(direction, slope);
+                       // info!("slope quat {:?}", slope_quat);
+                       direction = slope_quat.mul_vec3(direction);
+                   }
+                   _ => {
+                       gizmos.circle(
+                           global_transform.translation(),
+                           Vec3::Y,
+                           1.0,
+                           Color::ALICE_BLUE,
+                       );
+                   }
+               }
+        */
 
-        gizmos.ray(
-            ground_cast_origin,
-            slope_cast_direction * (ground_cast_length + ground_cast_overshoot),
-            Color::BISQUE,
-        );
-        gizmos.ray(
-            ground_cast_origin + (slope_cast_direction * ground_cast_length),
-            slope_cast_direction * ground_cast_overshoot,
-            Color::SEA_GREEN,
+        ray_arrow_gizmo(
+            &mut gizmos,
+            global_transform.translation(),
+            slope_cast_direction * 0.5,
+            Color::GREEN,
         );
         let ground_cast = spatial_query.cast_shape(
             &Collider::ball(obstacle_collision_radius),
@@ -310,58 +279,101 @@ pub fn update_platforming_kinematic_from_physics(
         // Check if we're on the ground or not.
         match ground_cast {
             Some(ground) => {
-                // We're on the ground now. Were we on the ground last time?
-                match physics.air_speed {
-                    // We're still on the ground.
-                    AirSpeed::Grounded { .. } => {
-                        // Check if we're floating above the ground a little bit.
-                        // If so, pull the character into the ground so they stick to it
-                        if ground.time_of_impact > desired_distance_from_ground {
-                            let dist_away_from_ground =
-                                -1.0 * (ground.time_of_impact - desired_distance_from_ground);
-                            if dist_away_from_ground < -0.0001 {
-                                // info!("pull down by {:?}", dist_away_from_ground);
-                                transform.translation = transform.translation
-                                    + (ground.normal1.normalize() * dist_away_from_ground);
-                            }
-                        }
-                        // Check if we're stuck inside of the ground, and if so, push us out of it.
-                        else if ground.time_of_impact < desired_distance_from_ground {
-                            let dist_inside_ground =
-                                desired_distance_from_ground - ground.time_of_impact;
-                            transform.translation = transform.translation
-                                + (ground.normal1.normalize() * dist_inside_ground);
-                        }
-                    }
-                    // We were in the air, and may have just landed.
-                    AirSpeed::InAir(air_speed) => {
-                        // The cast is longer than the actual distance from the ground our character should have.
-                        // Check that we are actually 'touching the ground' (measured distance <= desired distance)
-                        // Also make sure we aren't trying to move upward (jump). Probable TODO: Have a flag for this, so we can jump off ceilings unimpeded.
-                        if air_speed <= 0.0 && ground.time_of_impact <= desired_distance_from_ground
-                        {
-                            info!("just grounded");
-                            physics.air_speed = AirSpeed::Grounded {
-                                angle: 0.0, /* TODO: does it need to be computed here? */
-                            };
-
-                            // Check if we're stuck inside the ground, and if so, push us out of it.
-                            if ground.time_of_impact < desired_distance_from_ground {
-                                let dist_inside_ground =
-                                    desired_distance_from_ground - ground.time_of_impact;
-                                transform.translation = transform.translation
-                                    + (ground.normal1.normalize() * dist_inside_ground);
-                            }
-                        }
-                    }
-                };
-
                 gizmos.circle(
                     ground.point1,
                     ground.normal1,
-                    obstacle_collision_radius,
-                    Color::RED,
+                    obstacle_collision_radius * 0.9,
+                    Color::DARK_GREEN,
                 );
+
+                // compute slope direction
+                // rotation from the slope cast to the normal of the contact point
+                let slope_quat =
+                    Quat::from_rotation_arc(slope_cast_direction * -1.0, ground.normal1);
+                let sloped_direction = slope_quat.mul_vec3(direction);
+                let ground_angle = direction.angle_between(sloped_direction);
+
+                ray_arrow_gizmo(
+                    &mut gizmos,
+                    global_transform.translation(),
+                    direction,
+                    Color::PURPLE,
+                );
+                ray_arrow_gizmo(
+                    &mut gizmos,
+                    global_transform.translation(),
+                    sloped_direction,
+                    Color::PINK,
+                );
+                direction = sloped_direction;
+
+                if let Some(slope_cast) = spatial_query.cast_shape(
+                    &Collider::ball(obstacle_collision_radius),
+                    ground_cast_origin,
+                    Quat::default(),
+                    slope_cast_direction,
+                    ground_cast_length + ground_cast_overshoot,
+                    true,
+                    SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+                ) {
+                    gizmos.circle(
+                        slope_cast.point1,
+                        slope_cast.normal1,
+                        obstacle_collision_radius,
+                        Color::GREEN,
+                    );
+
+                    // We're on the ground now. Were we on the ground last time?
+                    match physics.air_speed {
+                        // We're still on the ground.
+                        AirSpeed::Grounded { ref mut angle } => {
+                            *angle = ground_angle;
+                            // Check if we're floating above the ground a little bit.
+                            // If so, pull the character into the ground so they stick to it
+                            if slope_cast.time_of_impact > desired_distance_from_ground {
+                                let dist_away_from_ground = -1.0
+                                    * (slope_cast.time_of_impact - desired_distance_from_ground);
+                                if dist_away_from_ground < -0.0001 {
+                                    // info!("pull down by {:?}", dist_away_from_ground);
+                                    // TODO: re-enable pull down, turned off while reworking slope to use shapecast
+                                    transform.translation = transform.translation
+                                        + (slope_cast.normal1.normalize() * dist_away_from_ground);
+                                }
+                            }
+                            // Check if we're stuck inside of the ground, and if so, push us out of it.
+                            else if slope_cast.time_of_impact < desired_distance_from_ground {
+                                let dist_inside_ground =
+                                    desired_distance_from_ground - slope_cast.time_of_impact;
+                                transform.translation = transform.translation
+                                    + (slope_cast.normal1.normalize() * dist_inside_ground);
+                            }
+                        }
+                        // We were in the air, and may have just landed.
+                        AirSpeed::InAir(air_speed) => {
+                            // The cast is longer than the actual distance from the ground our character should have.
+                            // Check that we are actually 'touching the ground' (measured distance <= desired distance)
+                            // Also make sure we aren't trying to move upward (jump). Probable TODO: Have a flag for this, so we can jump off ceilings unimpeded.
+                            if air_speed <= 0.0
+                                && slope_cast.time_of_impact <= desired_distance_from_ground
+                            {
+                                info!("just grounded");
+                                physics.air_speed = AirSpeed::Grounded {
+                                    angle: 0.0, /* TODO: does it need to be computed here? */
+                                };
+
+                                // Check if we're stuck inside the ground, and if so, push us out of it.
+                                // if slope_cast.time_of_impact < desired_distance_from_ground {
+                                //     let dist_inside_ground =
+                                //         desired_distance_from_ground - slope_cast.time_of_impact;
+                                //     transform.translation = transform.translation
+                                //         + (slope_cast.normal1.normalize() * dist_inside_ground);
+                                // }
+                            }
+                        }
+                    };
+                } else {
+                    warn!("unexpected, ground cast made contact but slope didn't");
+                }
             }
             None => {
                 // We aren't on the ground now. Were we previously?
@@ -602,4 +614,35 @@ pub fn update_floor(
             (None, None) => warn!("no collision for front or back sensor"),
         }
     }
+}
+
+fn ray_arrow_gizmo(mut gizmos: &mut Gizmos<'_>, start: Vec3, vector: Vec3, color: Color) {
+    let end = start + vector;
+    gizmos.line(start, end, color);
+
+    let arrow_head_length = 0.1;
+
+    let arrow_head_axis = vector.any_orthogonal_vector();
+
+    let arrow_head_vector = Quat::from_axis_angle(arrow_head_axis, PI / 4.0)
+        .mul_vec3(vector * -1.0)
+        .normalize()
+        * arrow_head_length;
+
+    gizmos.line(end, end + arrow_head_vector, color);
+    gizmos.line(
+        end,
+        end + Quat::from_axis_angle(vector, PI * 0.5).mul_vec3(arrow_head_vector),
+        color,
+    );
+    gizmos.line(
+        end,
+        end + Quat::from_axis_angle(vector, PI * 1.5).mul_vec3(arrow_head_vector),
+        color,
+    );
+    gizmos.line(
+        end,
+        end + Quat::from_axis_angle(vector, PI).mul_vec3(arrow_head_vector),
+        color,
+    );
 }
