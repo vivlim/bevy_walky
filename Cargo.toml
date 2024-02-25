@@ -1,10 +1,37 @@
 [package]
 name = "bevy_walky"
 version = "0.1.0"
+publish = false
+authors = ["viv <git@vvn.space>"] # ToDo: you are the author ;)
 edition = "2021"
+exclude = ["dist", "build", "assets", "credits"]
 
 [profile.dev.package."*"]
-opt-level = 2
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+# This is used by trunk as it doesn't support custom profiles: https://github.com/trunk-rs/trunk/issues/605
+# xbuild also uses this profile for building android AABs because I couldn't find a configuration for it
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+# Profile for distribution
+[profile.dist]
+inherits = "release"
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[features]
+dev = [
+    "bevy/dynamic_linking",
+]
 
 [dependencies]
 bevy = { version = "0.12", features = [] }
