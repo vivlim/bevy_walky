@@ -205,11 +205,11 @@ pub fn update_platforming_kinematic_from_physics(
 
         // Cast ahead and behind to get the slope from where we're standing now.
         let radius = 0.50;
-        let obstacle_collision_radius = 0.25;
+        let obstacle_collision_radius = 0.35;
         let slope_cast_direction = physics.ground_cast_direction;
         let slope_cast_distance = 2.0 + radius;
-        let slope_cast_spacing = radius / 2.0;
-        let desired_distance_from_ground = radius * 2.0;
+        let slope_cast_spacing = radius;
+        let desired_distance_from_ground = radius * 2.0 - obstacle_collision_radius;
         let ground_cast_overshoot = 0.1;
         let slope_cast_translate = (slope_cast_direction * radius) * -1.0;
         let front_slope_cast_origin = global_transform.translation()
@@ -294,8 +294,10 @@ pub fn update_platforming_kinematic_from_physics(
             slope_cast_direction * ground_cast_overshoot,
             Color::SEA_GREEN,
         );
-        let ground_cast = spatial_query.cast_ray(
+        let ground_cast = spatial_query.cast_shape(
+            &Collider::ball(obstacle_collision_radius),
             ground_cast_origin,
+            Quat::default(),
             slope_cast_direction,
             ground_cast_length + ground_cast_overshoot,
             true,
@@ -320,7 +322,7 @@ pub fn update_platforming_kinematic_from_physics(
                             if dist_away_from_ground < -0.0001 {
                                 // info!("pull down by {:?}", dist_away_from_ground);
                                 transform.translation = transform.translation
-                                    + (ground.normal.normalize() * dist_away_from_ground);
+                                    + (ground.normal1.normalize() * dist_away_from_ground);
                             }
                         }
                         // Check if we're stuck inside of the ground, and if so, push us out of it.
@@ -328,7 +330,7 @@ pub fn update_platforming_kinematic_from_physics(
                             let dist_inside_ground =
                                 desired_distance_from_ground - ground.time_of_impact;
                             transform.translation = transform.translation
-                                + (ground.normal.normalize() * dist_inside_ground);
+                                + (ground.normal1.normalize() * dist_inside_ground);
                         }
                     }
                     // We were in the air, and may have just landed.
@@ -348,11 +350,18 @@ pub fn update_platforming_kinematic_from_physics(
                                 let dist_inside_ground =
                                     desired_distance_from_ground - ground.time_of_impact;
                                 transform.translation = transform.translation
-                                    + (ground.normal.normalize() * dist_inside_ground);
+                                    + (ground.normal1.normalize() * dist_inside_ground);
                             }
                         }
                     }
-                }
+                };
+
+                gizmos.circle(
+                    ground.point1,
+                    ground.normal1,
+                    obstacle_collision_radius,
+                    Color::RED,
+                );
             }
             None => {
                 // We aren't on the ground now. Were we previously?
