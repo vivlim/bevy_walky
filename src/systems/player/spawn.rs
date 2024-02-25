@@ -31,7 +31,7 @@ pub fn spawn_player(
         PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
             material: materials.add(Color::rgba_u8(124, 0, 255, 69).into()),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            transform: Transform::from_xyz(0.0, 2.0, 0.0),
             ..default()
         },
         RigidBody::Kinematic,
@@ -64,6 +64,10 @@ pub fn spawn_player(
             friction_speed: 0.30,
             gravity: -0.2,
             jump_speed: 2.0,
+            cushion_radius: 0.5,
+            ground_detection_radius: 0.2,
+            obstacle_detection_radius: 0.35,
+            slope_cast_distance: 2.0,
         })
         .insert(PlatformingCharacterAnimationFlags { skidding: false })
         .insert(OrbitCameraTarget {

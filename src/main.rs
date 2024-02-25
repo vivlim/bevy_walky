@@ -116,8 +116,16 @@ fn main() {
                 .before(TransformSystem::TransformPropagate),
         )
         .add_systems(
+            PostUpdate,
+            systems::player::physics::push_out_of_ground
+                .after(PhysicsSet::Sync)
+                .before(TransformSystem::TransformPropagate),
+        )
+        .add_systems(
             SubstepSchedule,
-            systems::player::physics::handle_collisions.in_set(SubstepSet::SolveUserConstraints),
+            systems::player::physics::handle_collisions
+                .in_set(SubstepSet::SolveUserConstraints)
+                .after(systems::player::physics::push_out_of_ground),
         )
         .run();
 }

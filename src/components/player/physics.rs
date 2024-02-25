@@ -16,6 +16,14 @@ pub struct PlatformingCharacterValues {
     pub friction_speed: f32,
     pub gravity: f32,
     pub jump_speed: f32,
+    /// Radius for slope detection, and the amount of distance we want to have from the ground. it's a 'cushion' around the actual collider.
+    pub cushion_radius: f32,
+    /// How big our 'footprint' is.
+    pub ground_detection_radius: f32,
+    /// How big our radius for bonking into stuff is.
+    pub obstacle_detection_radius: f32,
+    /// How far to cast when computing slopes
+    pub slope_cast_distance: f32,
 }
 
 #[derive(Component, Reflect)]
@@ -51,7 +59,7 @@ pub struct KinematicCharacterPhysics {
 
 #[derive(Reflect)]
 pub enum AirSpeed {
-    Grounded { angle: f32 },
+    Grounded { angle: f32, slope_quat: Quat },
     InAir(f32),
 }
 
