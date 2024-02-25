@@ -304,12 +304,10 @@ pub fn update_platforming_kinematic_from_physics(
         let ground_cast_overshoot = 0.1;
         let mut ground_cast_direction = slope_cast_direction; // may be adjusted based on detected slope
         let slope_cast_translate = (slope_cast_direction * radius) * -1.0;
-        let front_slope_cast_origin = global_transform.translation()
-            + slope_cast_translate
-            + (direction * (slope_cast_spacing));
-        let back_slope_cast_origin = global_transform.translation()
-            + slope_cast_translate
-            + (direction * (slope_cast_spacing * -1.0));
+        let front_slope_cast_origin =
+            global_transform.translation() + (direction * (slope_cast_spacing));
+        let back_slope_cast_origin =
+            global_transform.translation() + (direction * (slope_cast_spacing * -1.0));
         let ground_cast_origin = global_transform.translation();
         let mut ground_cast_length = desired_distance_from_ground; // Set this using the longer slope cast, if there is one. but start with the desired distance from ground
         let front_slope_cast = spatial_query.cast_ray(
