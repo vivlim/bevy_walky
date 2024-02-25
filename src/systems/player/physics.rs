@@ -55,7 +55,7 @@ pub fn update_platforming_accel_from_controls(
         }
 
         match (&platforming.air_speed, control.jump_pressed) {
-            (AirSpeed::Grounded{..}, true) => {
+            (AirSpeed::Grounded { .. }, true) => {
                 accel.air_acceleration = values.jump_speed;
             }
             (AirSpeed::InAir(_), false) => {
@@ -76,14 +76,14 @@ pub fn update_platforming_physics(
 ) {
     for (mut platforming, mut accel, values) in query.iter_mut() {
         if accel.air_acceleration > 0.0 {
-            if let AirSpeed::Grounded {..} = platforming.air_speed {
+            if let AirSpeed::Grounded { .. } = platforming.air_speed {
                 // Trying to jump, and on the ground.
                 platforming.air_speed = AirSpeed::InAir(accel.air_acceleration);
             }
         }
 
         let ground_accel = match platforming.air_speed {
-            AirSpeed::Grounded {..}=> accel.ground_acceleration,
+            AirSpeed::Grounded { .. } => accel.ground_acceleration,
             AirSpeed::InAir(_) => accel.ground_acceleration * 0.5,
         };
         //let initial_speed = platforming.ground_speed.length() > values.top_speed;
@@ -93,7 +93,7 @@ pub fn update_platforming_physics(
         platforming.ground_speed = platforming.ground_speed.clamp_length(0.0, values.top_speed);
 
         match platforming.air_speed {
-            AirSpeed::Grounded {..}=> {
+            AirSpeed::Grounded { .. } => {
                 // Apply friction
                 if (accel.ground_friction > 0.0) {
                     // Get friction vector - start with a unit vector that's facing the direction
@@ -152,19 +152,16 @@ pub fn update_platforming_kinematic_from_physics(
         if physics.ground_speed.length() > 1.0 {
             physics.ground_direction = physics.ground_speed.normalize();
         }
-        let mut direction = 
-            // Map the ground direction into 3d space
-            Vec3 {
-                x: physics.ground_direction.x,
-                y: 0.0,
-                z: physics.ground_direction.y,
-            }
-        ;
-
+        // Map the ground direction into 3d space
+        let mut direction = Vec3 {
+            x: physics.ground_direction.x,
+            y: 0.0,
+            z: physics.ground_direction.y,
+        };
 
         // Wall running
         if let AirSpeed::Grounded { angle, .. } = physics.air_speed {
-            if (angle > PI/4.0 || angle < -PI/4.0){
+            if (angle > PI / 4.0 || angle < -PI / 4.0) {
                 // Cast a ray in the direction we are trying to go. If it hits something, use it as a new ground cast direction
 
                 if let Some(running_up_wall_cast) = spatial_query.cast_ray(
@@ -173,24 +170,23 @@ pub fn update_platforming_kinematic_from_physics(
                     1.0,
                     true,
                     SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-                ){
+                ) {
                     let mut new_ground_direction = Vec3::ZERO - running_up_wall_cast.normal;
-                    if (physics.wall_running){
+                    if (physics.wall_running) {
                         // Leaving a wall. Keep only Y
                         new_ground_direction.x = 0.0;
                         new_ground_direction.z = 0.0;
                         // Positive Y is ceiling running.
                         if new_ground_direction.y > 0.0 {
                             new_ground_direction.y = 1.0;
-                        }
-                        else {
+                        } else {
                             new_ground_direction.y = -1.0;
                         }
                         physics.wall_running = false;
                     } else {
                         // Remove y component. Only want x/z (unless we are doing ceiling running)
                         new_ground_direction.y = 0.0;
-                        if let Some(n) = new_ground_direction.try_normalize(){
+                        if let Some(n) = new_ground_direction.try_normalize() {
                             new_ground_direction = n;
                             physics.wall_running = true;
                         } else {
@@ -203,19 +199,25 @@ pub fn update_platforming_kinematic_from_physics(
                 }
             }
         }
-        let cast_origin_rotation = Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
+        let cast_origin_rotation =
+            Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
         direction = cast_origin_rotation.mul(direction);
 
         // Cast ahead and behind to get the slope from where we're standing now.
         let radius = 0.50;
+        let obstacle_collision_radius = 0.25;
         let slope_cast_direction = physics.ground_cast_direction;
         let slope_cast_distance = 2.0 + radius;
         let slope_cast_spacing = radius / 2.0;
         let desired_distance_from_ground = radius * 2.0;
         let ground_cast_overshoot = 0.1;
         let slope_cast_translate = (slope_cast_direction * radius) * -1.0;
-        let front_slope_cast_origin = global_transform.translation() + slope_cast_translate + (direction * (slope_cast_spacing));
-        let back_slope_cast_origin = global_transform.translation() + slope_cast_translate + (direction * (slope_cast_spacing * -1.0));
+        let front_slope_cast_origin = global_transform.translation()
+            + slope_cast_translate
+            + (direction * (slope_cast_spacing));
+        let back_slope_cast_origin = global_transform.translation()
+            + slope_cast_translate
+            + (direction * (slope_cast_spacing * -1.0));
         let ground_cast_origin = global_transform.translation() + slope_cast_translate;
         let mut ground_cast_length = desired_distance_from_ground; // Set this using the longer slope cast, if there is one. but start with the desired distance from ground
         let front_slope_cast = spatial_query.cast_ray(
@@ -233,10 +235,23 @@ pub fn update_platforming_kinematic_from_physics(
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         );
 
-        gizmos.sphere(global_transform.translation(), Quat::default(), radius, Color::BLACK);
+        gizmos.sphere(
+            global_transform.translation(),
+            Quat::default(),
+            radius,
+            Color::BLACK,
+        );
 
-        gizmos.ray(front_slope_cast_origin, slope_cast_direction * (slope_cast_distance), Color::LIME_GREEN);
-        gizmos.ray(back_slope_cast_origin, slope_cast_direction * (slope_cast_distance), Color::DARK_GREEN);
+        gizmos.ray(
+            front_slope_cast_origin,
+            slope_cast_direction * (slope_cast_distance),
+            Color::LIME_GREEN,
+        );
+        gizmos.ray(
+            back_slope_cast_origin,
+            slope_cast_direction * (slope_cast_distance),
+            Color::DARK_GREEN,
+        );
         match (front_slope_cast, back_slope_cast) {
             (Some(front), Some(back)) => {
                 ground_cast_length = f32::max(front.time_of_impact, back.time_of_impact);
@@ -251,7 +266,7 @@ pub fn update_platforming_kinematic_from_physics(
 
                 gizmos.ray(back_contact, slope, Color::GREEN);
 
-                if let AirSpeed::Grounded{ref mut angle} = physics.air_speed {
+                if let AirSpeed::Grounded { ref mut angle } = physics.air_speed {
                     *angle = direction.angle_between(slope);
                 }
 
@@ -269,8 +284,16 @@ pub fn update_platforming_kinematic_from_physics(
             }
         }
 
-        gizmos.ray(ground_cast_origin, slope_cast_direction * (ground_cast_length + ground_cast_overshoot), Color::BISQUE);
-        gizmos.ray(ground_cast_origin + (slope_cast_direction * ground_cast_length), slope_cast_direction * ground_cast_overshoot, Color::SEA_GREEN);
+        gizmos.ray(
+            ground_cast_origin,
+            slope_cast_direction * (ground_cast_length + ground_cast_overshoot),
+            Color::BISQUE,
+        );
+        gizmos.ray(
+            ground_cast_origin + (slope_cast_direction * ground_cast_length),
+            slope_cast_direction * ground_cast_overshoot,
+            Color::SEA_GREEN,
+        );
         let ground_cast = spatial_query.cast_ray(
             ground_cast_origin,
             slope_cast_direction,
@@ -280,7 +303,7 @@ pub fn update_platforming_kinematic_from_physics(
         );
 
         // Set linear velocity
-        lv.0 = direction * physics.ground_speed.length();
+        let mut desired_linear_velocity = direction * physics.ground_speed.length();
 
         // Check if we're on the ground or not.
         match ground_cast {
@@ -292,39 +315,48 @@ pub fn update_platforming_kinematic_from_physics(
                         // Check if we're floating above the ground a little bit.
                         // If so, pull the character into the ground so they stick to it
                         if ground.time_of_impact > desired_distance_from_ground {
-                            let dist_away_from_ground = -1.0 * (ground.time_of_impact - desired_distance_from_ground);
+                            let dist_away_from_ground =
+                                -1.0 * (ground.time_of_impact - desired_distance_from_ground);
                             if dist_away_from_ground < -0.0001 {
                                 // info!("pull down by {:?}", dist_away_from_ground);
-                                transform.translation = transform.translation + (ground.normal.normalize() * dist_away_from_ground);
+                                transform.translation = transform.translation
+                                    + (ground.normal.normalize() * dist_away_from_ground);
                             }
                         }
                         // Check if we're stuck inside of the ground, and if so, push us out of it.
                         else if ground.time_of_impact < desired_distance_from_ground {
-                            let dist_inside_ground = desired_distance_from_ground - ground.time_of_impact;
-                            transform.translation = transform.translation + (ground.normal.normalize() * dist_inside_ground);
+                            let dist_inside_ground =
+                                desired_distance_from_ground - ground.time_of_impact;
+                            transform.translation = transform.translation
+                                + (ground.normal.normalize() * dist_inside_ground);
                         }
-                    },
+                    }
                     // We were in the air, and may have just landed.
                     AirSpeed::InAir(air_speed) => {
                         // The cast is longer than the actual distance from the ground our character should have.
                         // Check that we are actually 'touching the ground' (measured distance <= desired distance)
                         // Also make sure we aren't trying to move upward (jump). Probable TODO: Have a flag for this, so we can jump off ceilings unimpeded.
-                        if air_speed <= 0.0 && ground.time_of_impact <= desired_distance_from_ground {
+                        if air_speed <= 0.0 && ground.time_of_impact <= desired_distance_from_ground
+                        {
                             info!("just grounded");
-                            physics.air_speed = AirSpeed::Grounded{angle: 0.0 /* TODO: does it need to be computed here? */};
+                            physics.air_speed = AirSpeed::Grounded {
+                                angle: 0.0, /* TODO: does it need to be computed here? */
+                            };
 
                             // Check if we're stuck inside the ground, and if so, push us out of it.
                             if ground.time_of_impact < desired_distance_from_ground {
-                                let dist_inside_ground = desired_distance_from_ground - ground.time_of_impact;
-                                transform.translation = transform.translation + (ground.normal.normalize() * dist_inside_ground);
+                                let dist_inside_ground =
+                                    desired_distance_from_ground - ground.time_of_impact;
+                                transform.translation = transform.translation
+                                    + (ground.normal.normalize() * dist_inside_ground);
                             }
                         }
                     }
                 }
-            },
+            }
             None => {
                 // We aren't on the ground now. Were we previously?
-                if let AirSpeed::Grounded{..} = physics.air_speed {
+                if let AirSpeed::Grounded { .. } = physics.air_speed {
                     // Yes, we need to move into the 'in-air' state.
                     // While we're in the air,
                     // - the air speed controls the y component
@@ -339,9 +371,28 @@ pub fn update_platforming_kinematic_from_physics(
                     physics.ground_cast_direction = Vec3::NEG_Y;
                 }
             }
-
         }
 
+        // Check if we are running into any obstacles.
+        if let Some(obstacle_cast) = spatial_query.cast_shape(
+            &Collider::ball(obstacle_collision_radius),
+            global_transform.translation(),
+            Quat::default(),
+            desired_linear_velocity.normalize(),
+            desired_linear_velocity.length(),
+            true,
+            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+        ) {
+            gizmos.circle(
+                obstacle_cast.point1,
+                obstacle_cast.normal1,
+                obstacle_collision_radius,
+                Color::RED,
+            );
+        }
+
+        // Apply linear velocity.
+        lv.0 = desired_linear_velocity;
         // If we are in the air at the end of all this, set the y component of the linear velocity to the air speed.
         if let AirSpeed::InAir(air_speed) = physics.air_speed {
             lv.y = air_speed;
@@ -385,7 +436,7 @@ pub fn handle_collisions(
 
                             if let Some(ref mut physics) = maybe_physics1 {
                                 if let AirSpeed::InAir(_) = physics.air_speed {
-                                    physics.air_speed = AirSpeed::Grounded{angle: 0.0};
+                                    physics.air_speed = AirSpeed::Grounded { angle: 0.0 };
                                     info!("now grounded (entity 1)");
                                 }
                             }
@@ -393,7 +444,7 @@ pub fn handle_collisions(
                             position2.0 += contact.global_normal1(rotation1) * contact.penetration;
                             if let Some(ref mut physics) = maybe_physics2 {
                                 if let AirSpeed::InAir(_) = physics.air_speed {
-                                    physics.air_speed = AirSpeed::Grounded{angle:0.0};
+                                    physics.air_speed = AirSpeed::Grounded { angle: 0.0 };
                                     info!("now grounded (entity 2)");
                                 }
                             }
