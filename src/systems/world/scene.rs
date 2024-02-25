@@ -33,7 +33,7 @@ pub fn setup_scene(
         PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
             material: materials.add(Color::rgb_u8(124, 144, 255).into()),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            transform: Transform::from_xyz(10.0, 0.5, 0.0),
             ..default()
         },
         AsyncCollider(ComputedCollider::TriMesh),
@@ -41,7 +41,7 @@ pub fn setup_scene(
             [MyCollisionLayers::Environment],
             [MyCollisionLayers::Player],
         ),
-        RigidBody::Static,
+        RigidBody::Dynamic,
     ));
     // light
     commands.spawn(PointLightBundle {

@@ -35,7 +35,7 @@ pub fn spawn_player(
             ..default()
         },
         RigidBody::Kinematic,
-        Collider::ball(0.40),
+        Collider::ball(0.35),
     ));
     player
         .insert(PlatformingCharacterPhysics {

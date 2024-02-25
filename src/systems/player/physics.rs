@@ -206,6 +206,8 @@ pub fn update_platforming_kinematic_from_physics(
             Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
         direction = cast_origin_rotation.mul(direction);
 
+        let mut colliding_with_wall = false;
+
         if let Some(collision_normal) = physics.wall_collision_normal {
             // Map the wall collision normal (it's the normal from the character, so it is pointing into the wall)
             // into 2d space
@@ -219,11 +221,16 @@ pub fn update_platforming_kinematic_from_physics(
             };
 
             // Project the ground speed onto it, to get the component of the character's speed that is being absorbed by the wall.
-            let into_wall_speed = physics.ground_speed.project_onto(wall_collision_normal_2d);
-            if !into_wall_speed.is_nan() {
-                // Now subtract that from the ground speed
-                physics.ground_speed -= (into_wall_speed * 0.5);
+            let into_wall_speed = physics.ground_speed.project_onto(wall_collision_normal_2d) * 0.2;
+            if !into_wall_speed.is_nan() && physics.ground_speed.length() > 0.0 {
+                // get the % of speed that is not being absorbed into wall
+                let unabsorbed_speed_ratio =
+                    1.0 - (into_wall_speed.length() / physics.ground_speed.length());
+                physics.ground_speed *= unabsorbed_speed_ratio;
+                // Adjust the current ground speed by that.
+                // We multiply the existing one so that the orientation is not affected (which a subtraction would do)
                 info!("adjusted ground speed {:?}", physics.ground_speed);
+                colliding_with_wall = true;
             }
             // ray_arrow_gizmo(
             //     &mut gizmos,
@@ -241,14 +248,61 @@ pub fn update_platforming_kinematic_from_physics(
             physics.wall_collision_normal = None;
         }
 
-        // Cast ahead and behind to get the slope from where we're standing now.
+        // Radius for slope detection, and the amount of distance we want to have from the ground. it's a 'cushion' around the actual collider.
         let radius = 0.50;
-        let obstacle_collision_radius = 0.35;
+        // How big our 'footprint' is.
+        let ground_detection_radius = 0.20;
+        // How big our radius for bonking into stuff is.
+        let obstacle_detection_radius = 0.35;
+
+        // Check if we're in bonking range for any obstacles (walls)
+        let obstacle_cast_distance = radius - obstacle_detection_radius;
+
+        let obstacle = match spatial_query.cast_shape(
+            &Collider::ball(obstacle_detection_radius),
+            global_transform.translation(),
+            Quat::default(),
+            direction,
+            obstacle_cast_distance,
+            true,
+            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+        ) {
+            Some(obstacle_cast) => {
+                gizmos.circle(
+                    obstacle_cast.point1,
+                    obstacle_cast.normal1,
+                    obstacle_detection_radius,
+                    Color::RED,
+                );
+                true
+                // desired_linear_velocity = Vec3::ZERO;
+                // physics.ground_speed = Vec2::ZERO;
+
+                // if obstacle_cast.time_of_impact < obstacle_cast_distance {
+                //     let overlap = obstacle_cast_distance - obstacle_cast.time_of_impact;
+                //     if overlap > EPSILON {
+                //         transform.translation = transform.translation
+                //             + (obstacle_cast.normal1.normalize() * overlap * -1.0);
+                //     }
+                // }
+            }
+            None => false,
+        };
+
+        // Cast ahead and behind to get the slope from where we're standing now.
         let slope_cast_direction = physics.ground_cast_direction;
         let slope_cast_distance = 2.0 + radius;
-        let slope_cast_spacing = radius;
-        let desired_distance_from_ground = radius * 2.0 - obstacle_collision_radius;
+        // If we aren't touching a wall, use a wider span to get smoother slopes
+        // but if we are, pull it in close so that the wall collision takes precedence over detecting slopes (avoid popping over small obstacles)
+        // Must be wide enough that a 45 degree angle won't result in a slope cast touching the ground cast
+        let slope_cast_spacing = if obstacle {
+            obstacle_detection_radius
+        } else {
+            radius
+        };
+        let mut desired_distance_from_ground = radius - ground_detection_radius;
         let ground_cast_overshoot = 0.1;
+        let mut ground_cast_direction = slope_cast_direction; // may be adjusted based on detected slope
         let slope_cast_translate = (slope_cast_direction * radius) * -1.0;
         let front_slope_cast_origin = global_transform.translation()
             + slope_cast_translate
@@ -256,7 +310,7 @@ pub fn update_platforming_kinematic_from_physics(
         let back_slope_cast_origin = global_transform.translation()
             + slope_cast_translate
             + (direction * (slope_cast_spacing * -1.0));
-        let ground_cast_origin = global_transform.translation() + slope_cast_translate;
+        let ground_cast_origin = global_transform.translation();
         let mut ground_cast_length = desired_distance_from_ground; // Set this using the longer slope cast, if there is one. but start with the desired distance from ground
         let front_slope_cast = spatial_query.cast_ray(
             front_slope_cast_origin,
@@ -290,6 +344,9 @@ pub fn update_platforming_kinematic_from_physics(
             slope_cast_direction * (slope_cast_distance),
             Color::DARK_GREEN,
         );
+
+        let mut slope_detected = false;
+
         match (front_slope_cast, back_slope_cast) {
             (Some(front), Some(back)) => {
                 ground_cast_length = f32::max(front.time_of_impact, back.time_of_impact);
@@ -301,16 +358,30 @@ pub fn update_platforming_kinematic_from_physics(
                 gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
 
                 let slope = Vec3::normalize(front_contact - back_contact);
-
-                gizmos.ray(back_contact, slope, Color::GREEN);
-
-                if let AirSpeed::Grounded { ref mut angle } = physics.air_speed {
-                    *angle = direction.angle_between(slope);
-                }
-
                 let slope_quat = Quat::from_rotation_arc(direction, slope);
-                // info!("slope quat {:?}", slope_quat);
-                direction = slope_quat.mul_vec3(direction);
+                let sloped_direction = slope_quat.mul_vec3(direction);
+
+                // Check if there is an obstacle that's closer than the front slope sensor.
+                if let Some(obstacle) = spatial_query.cast_ray(
+                    global_transform.translation(),
+                    sloped_direction,
+                    obstacle_detection_radius,
+                    true,
+                    SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
+                ) {
+                    // There's an obstacle. Invalidate this result
+                } else {
+                    gizmos.ray(back_contact, slope, Color::GREEN);
+
+                    if let AirSpeed::Grounded { ref mut angle } = physics.air_speed {
+                        *angle = direction.angle_between(slope);
+                    }
+
+                    // info!("slope quat {:?}", slope_quat);
+                    direction = sloped_direction;
+                    ground_cast_direction = slope_quat.mul_vec3(ground_cast_direction);
+                    slope_detected = true;
+                }
             }
             (Some(_), None) | (None, Some(_)) => {
                 // Only one sensor is making contact.
@@ -320,19 +391,19 @@ pub fn update_platforming_kinematic_from_physics(
 
         gizmos.ray(
             ground_cast_origin,
-            slope_cast_direction * (ground_cast_length + ground_cast_overshoot),
+            ground_cast_direction * (ground_cast_length + ground_cast_overshoot),
             Color::BISQUE,
         );
         gizmos.ray(
             ground_cast_origin + (slope_cast_direction * ground_cast_length),
-            slope_cast_direction * ground_cast_overshoot,
+            ground_cast_direction * ground_cast_overshoot,
             Color::SEA_GREEN,
         );
         let ground_cast = spatial_query.cast_shape(
-            &Collider::ball(obstacle_collision_radius),
+            &Collider::ball(ground_detection_radius),
             ground_cast_origin,
             Quat::default(),
-            slope_cast_direction,
+            ground_cast_direction,
             ground_cast_length + ground_cast_overshoot,
             true,
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
@@ -350,7 +421,7 @@ pub fn update_platforming_kinematic_from_physics(
                     AirSpeed::Grounded { .. } => {
                         // Check if we're floating above the ground a little bit.
                         // If so, pull the character into the ground so they stick to it
-                        if ground.time_of_impact > desired_distance_from_ground {
+                        if slope_detected && ground.time_of_impact > desired_distance_from_ground {
                             let dist_away_from_ground =
                                 -1.0 * (ground.time_of_impact - desired_distance_from_ground);
                             if dist_away_from_ground < -0.0001 {
@@ -365,7 +436,7 @@ pub fn update_platforming_kinematic_from_physics(
                                 desired_distance_from_ground - ground.time_of_impact;
                             if dist_inside_ground > 0.001 {
                                 transform.translation = transform.translation
-                                    + (ground.normal1.normalize() * dist_inside_ground);
+                                    - (ground_cast_direction * dist_inside_ground);
                                 info!("push out of ground {:?}", dist_inside_ground);
                             }
                         }
@@ -388,7 +459,7 @@ pub fn update_platforming_kinematic_from_physics(
                                     desired_distance_from_ground - ground.time_of_impact;
                                 if dist_inside_ground > 0.001 {
                                     transform.translation = transform.translation
-                                        + (ground.normal1.normalize() * dist_inside_ground);
+                                        - (ground_cast_direction * dist_inside_ground);
                                     info!(
                                         "push out of ground after landing {:?}",
                                         dist_inside_ground
@@ -402,7 +473,7 @@ pub fn update_platforming_kinematic_from_physics(
                 gizmos.circle(
                     ground.point1,
                     ground.normal1,
-                    obstacle_collision_radius,
+                    ground_detection_radius,
                     Color::RED,
                 );
             }
@@ -436,43 +507,16 @@ pub fn update_platforming_kinematic_from_physics(
         ray_arrow_gizmo(
             &mut gizmos,
             global_transform.translation(),
-            desired_linear_velocity.normalize() * (radius * obstacle_collision_radius),
+            desired_linear_velocity.normalize() * (radius * ground_detection_radius),
             Color::BLUE,
         );
         gizmos.sphere(
             global_transform.translation()
-                + (desired_linear_velocity.normalize() * (radius * obstacle_collision_radius)),
+                + (desired_linear_velocity.normalize() * (radius * ground_detection_radius)),
             Quat::default(),
-            obstacle_collision_radius,
+            ground_detection_radius,
             Color::BLUE,
         );
-        let obstacle_cast_distance = radius - obstacle_collision_radius;
-        if let Some(obstacle_cast) = spatial_query.cast_shape(
-            &Collider::ball(obstacle_collision_radius),
-            global_transform.translation(),
-            Quat::default(),
-            direction,
-            obstacle_cast_distance,
-            true,
-            SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
-        ) {
-            gizmos.circle(
-                obstacle_cast.point1,
-                obstacle_cast.normal1,
-                obstacle_collision_radius,
-                Color::RED,
-            );
-            // desired_linear_velocity = Vec3::ZERO;
-            // physics.ground_speed = Vec2::ZERO;
-
-            // if obstacle_cast.time_of_impact < obstacle_cast_distance {
-            //     let overlap = obstacle_cast_distance - obstacle_cast.time_of_impact;
-            //     if overlap > EPSILON {
-            //         transform.translation = transform.translation
-            //             + (obstacle_cast.normal1.normalize() * overlap * -1.0);
-            //     }
-            // }
-        }
 
         // Apply linear velocity.
         lv.0 = desired_linear_velocity;
