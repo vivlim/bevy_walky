@@ -282,12 +282,15 @@ pub fn update_platforming_kinematic_from_physics(
         // Set linear velocity
         lv.0 = direction * physics.ground_speed.length();
 
+        // Check if we're on the ground or not.
         match ground_cast {
             Some(ground) => {
+                // We're on the ground now. Were we on the ground last time?
                 match physics.air_speed {
+                    // We're still on the ground.
                     AirSpeed::Grounded { .. } => {
-                        // floating above the ground, but close enough.
-                        // pull the character into the ground so they stick to it
+                        // Check if we're floating above the ground a little bit.
+                        // If so, pull the character into the ground so they stick to it
                         if ground.time_of_impact > desired_distance_from_ground {
                             let dist_away_from_ground = -1.0 * (ground.time_of_impact - desired_distance_from_ground);
                             if dist_away_from_ground < -0.0001 {
@@ -295,18 +298,22 @@ pub fn update_platforming_kinematic_from_physics(
                                 transform.translation = transform.translation + (ground.normal.normalize() * dist_away_from_ground);
                             }
                         }
-                        // fell into the ground. push out.
+                        // Check if we're stuck inside of the ground, and if so, push us out of it.
                         else if ground.time_of_impact < desired_distance_from_ground {
                             let dist_inside_ground = desired_distance_from_ground - ground.time_of_impact;
                             transform.translation = transform.translation + (ground.normal.normalize() * dist_inside_ground);
                         }
                     },
+                    // We were in the air, and may have just landed.
                     AirSpeed::InAir(air_speed) => {
+                        // The cast is longer than the actual distance from the ground our character should have.
+                        // Check that we are actually 'touching the ground' (measured distance <= desired distance)
+                        // Also make sure we aren't trying to move upward (jump). Probable TODO: Have a flag for this, so we can jump off ceilings unimpeded.
                         if air_speed <= 0.0 && ground.time_of_impact <= desired_distance_from_ground {
                             info!("just grounded");
                             physics.air_speed = AirSpeed::Grounded{angle: 0.0 /* TODO: does it need to be computed here? */};
 
-                            // fell into the ground. push out.
+                            // Check if we're stuck inside the ground, and if so, push us out of it.
                             if ground.time_of_impact < desired_distance_from_ground {
                                 let dist_inside_ground = desired_distance_from_ground - ground.time_of_impact;
                                 transform.translation = transform.translation + (ground.normal.normalize() * dist_inside_ground);
@@ -316,7 +323,15 @@ pub fn update_platforming_kinematic_from_physics(
                 }
             },
             None => {
+                // We aren't on the ground now. Were we previously?
                 if let AirSpeed::Grounded{..} = physics.air_speed {
+                    // Yes, we need to move into the 'in-air' state.
+                    // While we're in the air,
+                    // - the air speed controls the y component
+                    // - the ground speed controls the x and z components
+                    // So we need to take the current linear velocity and map it to those.
+                    // That'll let us carry our momentum from a wallrun.
+
                     physics.air_speed = AirSpeed::InAir(lv.y); // Use the y component of the current running speed
                     physics.ground_speed.x = lv.x;
                     physics.ground_speed.y = lv.z;
@@ -327,7 +342,7 @@ pub fn update_platforming_kinematic_from_physics(
 
         }
 
-        //gizmos.ray(transform.translation, lv., Color::RED);
+        // If we are in the air at the end of all this, set the y component of the linear velocity to the air speed.
         if let AirSpeed::InAir(air_speed) = physics.air_speed {
             lv.y = air_speed;
             physics.ground_cast_direction = Vec3::NEG_Y;
@@ -346,6 +361,8 @@ pub fn handle_collisions(
     )>,
     mut scene_bodies: Query<(&RigidBody, &Children, &Handle<Scene>)>,
 ) {
+    // NOTE: this system isn't used currently, but I am not sure about deleting it yet
+
     // Iterate through collisions and move the kinematic body to resolve penetration
     for contacts in collisions.iter() {
         // If the collision didn't happen during this substep, skip the collision
