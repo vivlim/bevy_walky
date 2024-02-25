@@ -1,4 +1,7 @@
-use std::{f32::consts::PI, ops::Mul};
+use std::{
+    f32::{consts::PI, EPSILON},
+    ops::Mul,
+};
 
 use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_xpbd_3d::{math::Scalar, prelude::*};
@@ -203,6 +206,41 @@ pub fn update_platforming_kinematic_from_physics(
             Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
         direction = cast_origin_rotation.mul(direction);
 
+        if let Some(collision_normal) = physics.wall_collision_normal {
+            // Map the wall collision normal (it's the normal from the character, so it is pointing into the wall)
+            // into 2d space
+            let wall_collision_normal_2d = cast_origin_rotation
+                .inverse()
+                .mul(collision_normal)
+                .normalize();
+            let wall_collision_normal_2d = Vec2 {
+                x: wall_collision_normal_2d.x,
+                y: wall_collision_normal_2d.z,
+            };
+
+            // Project the ground speed onto it, to get the component of the character's speed that is being absorbed by the wall.
+            let into_wall_speed = physics.ground_speed.project_onto(wall_collision_normal_2d);
+            if !into_wall_speed.is_nan() {
+                // Now subtract that from the ground speed
+                physics.ground_speed -= (into_wall_speed * 0.5);
+                info!("adjusted ground speed {:?}", physics.ground_speed);
+            }
+            // ray_arrow_gizmo(
+            //     &mut gizmos,
+            //     global_transform.translation(),
+            //     wall_collision_normal_2d,
+            //     Color::WHITE,
+            // );
+
+            // ray_arrow_gizmo(
+            //     &mut gizmos,
+            //     global_transform.translation(),
+            //     direction,
+            //     Color::RED,
+            // );
+            physics.wall_collision_normal = None;
+        }
+
         // Cast ahead and behind to get the slope from where we're standing now.
         let radius = 0.50;
         let obstacle_collision_radius = 0.35;
@@ -274,14 +312,10 @@ pub fn update_platforming_kinematic_from_physics(
                 // info!("slope quat {:?}", slope_quat);
                 direction = slope_quat.mul_vec3(direction);
             }
-            _ => {
-                gizmos.circle(
-                    global_transform.translation(),
-                    Vec3::Y,
-                    1.0,
-                    Color::ALICE_BLUE,
-                );
+            (Some(_), None) | (None, Some(_)) => {
+                // Only one sensor is making contact.
             }
+            _ => {}
         }
 
         gizmos.ray(
@@ -329,8 +363,11 @@ pub fn update_platforming_kinematic_from_physics(
                         else if ground.time_of_impact < desired_distance_from_ground {
                             let dist_inside_ground =
                                 desired_distance_from_ground - ground.time_of_impact;
-                            transform.translation = transform.translation
-                                + (ground.normal1.normalize() * dist_inside_ground);
+                            if dist_inside_ground > 0.001 {
+                                transform.translation = transform.translation
+                                    + (ground.normal1.normalize() * dist_inside_ground);
+                                info!("push out of ground {:?}", dist_inside_ground);
+                            }
                         }
                     }
                     // We were in the air, and may have just landed.
@@ -349,8 +386,14 @@ pub fn update_platforming_kinematic_from_physics(
                             if ground.time_of_impact < desired_distance_from_ground {
                                 let dist_inside_ground =
                                     desired_distance_from_ground - ground.time_of_impact;
-                                transform.translation = transform.translation
-                                    + (ground.normal1.normalize() * dist_inside_ground);
+                                if dist_inside_ground > 0.001 {
+                                    transform.translation = transform.translation
+                                        + (ground.normal1.normalize() * dist_inside_ground);
+                                    info!(
+                                        "push out of ground after landing {:?}",
+                                        dist_inside_ground
+                                    );
+                                }
                             }
                         }
                     }
@@ -364,6 +407,13 @@ pub fn update_platforming_kinematic_from_physics(
                 );
             }
             None => {
+                gizmos.circle(
+                    global_transform.translation(),
+                    Vec3::Y,
+                    1.0,
+                    Color::ALICE_BLUE,
+                );
+
                 // We aren't on the ground now. Were we previously?
                 if let AirSpeed::Grounded { .. } = physics.air_speed {
                     // Yes, we need to move into the 'in-air' state.
@@ -383,12 +433,26 @@ pub fn update_platforming_kinematic_from_physics(
         }
 
         // Check if we are running into any obstacles.
+        ray_arrow_gizmo(
+            &mut gizmos,
+            global_transform.translation(),
+            desired_linear_velocity.normalize() * (radius * obstacle_collision_radius),
+            Color::BLUE,
+        );
+        gizmos.sphere(
+            global_transform.translation()
+                + (desired_linear_velocity.normalize() * (radius * obstacle_collision_radius)),
+            Quat::default(),
+            obstacle_collision_radius,
+            Color::BLUE,
+        );
+        let obstacle_cast_distance = radius - obstacle_collision_radius;
         if let Some(obstacle_cast) = spatial_query.cast_shape(
             &Collider::ball(obstacle_collision_radius),
             global_transform.translation(),
             Quat::default(),
-            desired_linear_velocity.normalize(),
-            desired_linear_velocity.length(),
+            direction,
+            obstacle_cast_distance,
             true,
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         ) {
@@ -398,6 +462,16 @@ pub fn update_platforming_kinematic_from_physics(
                 obstacle_collision_radius,
                 Color::RED,
             );
+            // desired_linear_velocity = Vec3::ZERO;
+            // physics.ground_speed = Vec2::ZERO;
+
+            // if obstacle_cast.time_of_impact < obstacle_cast_distance {
+            //     let overlap = obstacle_cast_distance - obstacle_cast.time_of_impact;
+            //     if overlap > EPSILON {
+            //         transform.translation = transform.translation
+            //             + (obstacle_cast.normal1.normalize() * overlap * -1.0);
+            //     }
+            // }
         }
 
         // Apply linear velocity.
@@ -417,12 +491,12 @@ pub fn handle_collisions(
         &mut Position,
         &Rotation,
         Option<&mut PlatformingCharacterPhysics>,
+        Option<&mut LinearVelocity>,
         Without<AsyncSceneCollider>,
     )>,
     mut scene_bodies: Query<(&RigidBody, &Children, &Handle<Scene>)>,
+    mut gizmos: Gizmos,
 ) {
-    // NOTE: this system isn't used currently, but I am not sure about deleting it yet
-
     // Iterate through collisions and move the kinematic body to resolve penetration
     for contacts in collisions.iter() {
         // If the collision didn't happen during this substep, skip the collision
@@ -430,7 +504,7 @@ pub fn handle_collisions(
             continue;
         }
         if let Ok(
-            [(rb1, mut position1, rotation1, mut maybe_physics1, _), (rb2, mut position2, _, mut maybe_physics2, _)],
+            [(rb1, mut position1, rotation1, mut maybe_physics1, mut maybe_lv1, _), (rb2, mut position2, _, mut maybe_physics2, mut maybe_lv2, _)],
         ) = bodies.get_many_mut([contacts.entity1, contacts.entity2])
         {
             for manifold in contacts.manifolds.iter() {
@@ -443,23 +517,127 @@ pub fn handle_collisions(
                         if rb1.is_kinematic() && !rb2.is_kinematic() {
                             position1.0 -= contact.global_normal1(rotation1) * contact.penetration;
 
-                            if let Some(ref mut physics) = maybe_physics1 {
-                                if let AirSpeed::InAir(_) = physics.air_speed {
-                                    physics.air_speed = AirSpeed::Grounded { angle: 0.0 };
-                                    info!("now grounded (entity 1)");
-                                }
+                            if let (Some(ref mut physics), Some(ref mut lv)) =
+                                (&mut maybe_physics1, &mut maybe_lv1)
+                            {
+                                physics.wall_collision_normal = Some(contact.normal1);
+                                ray_arrow_gizmo(
+                                    &mut gizmos,
+                                    contact.global_point1(&position1, &rotation1),
+                                    contact.global_normal1(&rotation1),
+                                    Color::BLACK,
+                                );
+                                ray_arrow_gizmo(
+                                    &mut gizmos,
+                                    contact.global_point1(&position1, &rotation1),
+                                    contact.global_normal1(&rotation1).any_orthogonal_vector(),
+                                    Color::LIME_GREEN,
+                                );
+
+                                // Reverse apply this to ground_speed
+
+                                // let cast_origin_rotation = Quat::from_rotation_arc(
+                                //     physics.ground_cast_direction,
+                                //     Vec3::NEG_Y,
+                                // );
+                                // let to_ground_speed =
+                                //     cast_origin_rotation.mul(cast_origin_rotation);
+
+                                // physics.ground_speed.x = to_ground_speed.x;
+                                // physics.ground_speed.y = to_ground_speed.z;
                             }
                         } else if rb2.is_kinematic() && !rb1.is_kinematic() {
                             position2.0 += contact.global_normal1(rotation1) * contact.penetration;
-                            if let Some(ref mut physics) = maybe_physics2 {
-                                if let AirSpeed::InAir(_) = physics.air_speed {
-                                    physics.air_speed = AirSpeed::Grounded { angle: 0.0 };
-                                    info!("now grounded (entity 2)");
-                                }
+                            if let (Some(ref mut physics), Some(ref mut lv)) =
+                                (&mut maybe_physics2, &mut maybe_lv2)
+                            {
+                                physics.wall_collision_normal = Some(contact.normal2);
+                                ray_arrow_gizmo(
+                                    &mut gizmos,
+                                    contact.global_point1(&position1, &rotation1),
+                                    contact.global_normal1(&rotation1),
+                                    Color::BLACK,
+                                );
+                                ray_arrow_gizmo(
+                                    &mut gizmos,
+                                    contact.global_point1(&position1, &rotation1),
+                                    contact.global_normal1(&rotation1).any_orthogonal_vector(),
+                                    Color::LIME_GREEN,
+                                );
+
+                                // // Reverse apply this to ground_speed
+
+                                // let cast_origin_rotation = Quat::from_rotation_arc(
+                                //     physics.ground_cast_direction,
+                                //     Vec3::NEG_Y,
+                                // );
+                                // let to_ground_speed =
+                                //     cast_origin_rotation.mul(cast_origin_rotation);
+
+                                // physics.ground_speed.x = to_ground_speed.x;
+                                // physics.ground_speed.y = to_ground_speed.z;
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+pub fn kinematic_controller_collisions(
+    collisions: Res<Collisions>,
+    collider_parents: Query<&ColliderParent, Without<Sensor>>,
+    mut character_controllers: Query<
+        (&RigidBody, &mut Position, &Rotation, &mut LinearVelocity),
+        With<KinematicCharacterPhysics>,
+    >,
+) {
+    // Iterate through collisions and move the kinematic body to resolve penetration
+    for contacts in collisions.iter() {
+        // If the collision didn't happen during this substep, skip the collision
+        // if !contacts.during_current_substep {
+        //     continue;
+        // }
+
+        // Get the rigid body entities of the colliders (colliders could be children)
+        let Ok([collider_parent1, collider_parent2]) =
+            collider_parents.get_many([contacts.entity1, contacts.entity2])
+        else {
+            continue;
+        };
+
+        // Get the body of the character controller and whether it is the first
+        // or second entity in the collision.
+        let is_first: bool;
+        let (rb, mut position, rotation, mut linear_velocity) =
+            if let Ok(character) = character_controllers.get_mut(collider_parent1.get()) {
+                is_first = true;
+                character
+            } else if let Ok(character) = character_controllers.get_mut(collider_parent2.get()) {
+                is_first = false;
+                character
+            } else {
+                continue;
+            };
+
+        // This system only handles collision response for kinematic character controllers
+        if !rb.is_kinematic() {
+            continue;
+        }
+
+        // Iterate through contact manifolds and their contacts.
+        // Each contact in a single manifold shares the same contact normal.
+        for manifold in contacts.manifolds.iter() {
+            let normal = if is_first {
+                -manifold.global_normal1(rotation)
+            } else {
+                -manifold.global_normal2(rotation)
+            };
+
+            // Solve each penetrating contact in the manifold
+            for contact in manifold.contacts.iter().filter(|c| c.penetration > 0.0) {
+                info!("ejecting by {:?}", contact.penetration);
+                position.0 += normal * contact.penetration;
             }
         }
     }
@@ -602,4 +780,35 @@ pub fn update_floor(
             (None, None) => warn!("no collision for front or back sensor"),
         }
     }
+}
+
+fn ray_arrow_gizmo(mut gizmos: &mut Gizmos<'_>, start: Vec3, vector: Vec3, color: Color) {
+    let end = start + vector;
+    gizmos.line(start, end, color);
+
+    let arrow_head_length = 0.1;
+
+    let arrow_head_axis = vector.any_orthogonal_vector();
+
+    let arrow_head_vector = Quat::from_axis_angle(arrow_head_axis, PI / 4.0)
+        .mul_vec3(vector * -1.0)
+        .normalize()
+        * arrow_head_length;
+
+    gizmos.line(end, end + arrow_head_vector, color);
+    gizmos.line(
+        end,
+        end + Quat::from_axis_angle(vector, PI * 0.5).mul_vec3(arrow_head_vector),
+        color,
+    );
+    gizmos.line(
+        end,
+        end + Quat::from_axis_angle(vector, PI * 1.5).mul_vec3(arrow_head_vector),
+        color,
+    );
+    gizmos.line(
+        end,
+        end + Quat::from_axis_angle(vector, PI).mul_vec3(arrow_head_vector),
+        color,
+    );
 }

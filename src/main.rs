@@ -5,7 +5,7 @@ use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 use bevy::transform::TransformSystem;
 use bevy::{prelude::*, render::RenderPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_xpbd_3d::{prelude::*, PhysicsSchedule};
+use bevy_xpbd_3d::{prelude::*, PhysicsSchedule, SubstepSchedule, SubstepSet};
 use components::camera::{OrbitCameraTarget, ViewpointMappable, ViewpointMappedInput};
 use components::player::sensors::CharacterSensorArray;
 use smooth_bevy_cameras::{
@@ -58,7 +58,7 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(UnrealCameraPlugin::default())
         .add_plugins(PhysicsPlugins::default())
-        //.add_plugins(PhysicsDebugPlugin::default())
+        .add_plugins(PhysicsDebugPlugin::default())
         .register_type::<components::player::physics::PlatformingCharacterPhysics>()
         .register_type::<components::player::physics::PlatformingCharacterPhysicsAccel>()
         .register_type::<components::player::physics::PlatformingCharacterValues>()
@@ -115,9 +115,9 @@ fn main() {
                 .after(PhysicsSet::Sync)
                 .before(TransformSystem::TransformPropagate),
         )
-        // .add_systems(
-        //     PostUpdate,
-        //     handle_collisions.after(update_platforming_kinematic_from_physics),
-        // )
+        .add_systems(
+            SubstepSchedule,
+            systems::player::physics::handle_collisions.in_set(SubstepSet::SolveUserConstraints),
+        )
         .run();
 }

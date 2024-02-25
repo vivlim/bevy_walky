@@ -35,15 +35,7 @@ pub fn spawn_player(
             ..default()
         },
         RigidBody::Kinematic,
-        Collider::ball(0.25),
-        ShapeCaster::new(
-            Collider::ball(0.25),
-            Vector::ZERO,
-            Quaternion::default(),
-            Vector::NEG_Y,
-        )
-        .with_max_time_of_impact(0.11)
-        .with_max_hits(1),
+        Collider::ball(0.40),
     ));
     player
         .insert(PlatformingCharacterPhysics {
@@ -52,6 +44,7 @@ pub fn spawn_player(
             ground_cast_direction: Vec3::NEG_Y,
             air_speed: crate::components::player::physics::AirSpeed::InAir(0.0),
             wall_running: false,
+            wall_collision_normal: None,
         })
         .insert(PlatformingCharacterPhysicsAccel {
             ground_acceleration: Vec2::ZERO,

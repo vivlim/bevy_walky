@@ -27,6 +27,8 @@ pub struct PlatformingCharacterPhysics {
     pub ground_cast_direction: Vec3,
     pub air_speed: AirSpeed,
     pub wall_running: bool,
+    /// feedback from 3d collisions to use for damping ground speed
+    pub wall_collision_normal: Option<Vec3>,
 }
 
 #[derive(Component, Reflect)]
