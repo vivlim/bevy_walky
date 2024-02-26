@@ -545,12 +545,9 @@ pub fn push_out_of_ground(
     {
         if let AirSpeed::Grounded { angle, slope_quat } = physics.air_speed {
             let ground_cast_direction = slope_quat.mul_vec3(physics.ground_cast_direction);
-            let desired_distance_from_ground =
-                values.cushion_radius - values.ground_detection_radius;
-            let ground_cast = spatial_query.cast_shape(
-                &Collider::ball(values.ground_detection_radius),
+            let desired_distance_from_ground = values.cushion_radius;
+            let ground_cast = spatial_query.cast_ray(
                 global_transform.translation(),
-                Quat::default(),
                 ground_cast_direction,
                 values.cushion_radius + values.ground_detection_radius, /* add a little overshoot */
                 true,
@@ -568,7 +565,7 @@ pub fn push_out_of_ground(
                         if dist_away_from_ground > 0.0001 {
                             info!("pull down by {:?}", dist_away_from_ground);
                             transform.translation = transform.translation
-                                + (ground.normal2.normalize() * dist_away_from_ground);
+                                - (ground.normal.normalize() * dist_away_from_ground);
                         }
                     }
                     // Check if we're stuck inside of the ground, and if so, push us out of it.
@@ -577,7 +574,7 @@ pub fn push_out_of_ground(
                             desired_distance_from_ground - ground.time_of_impact;
                         if dist_inside_ground > 0.001 {
                             transform.translation = transform.translation
-                                - (ground.normal2.normalize() * dist_inside_ground);
+                                + (ground.normal.normalize() * dist_inside_ground);
                             info!("push out of ground {:?}", dist_inside_ground);
                         }
                     }
