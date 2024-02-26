@@ -552,7 +552,7 @@ pub fn push_out_of_ground(
                 global_transform.translation(),
                 Quat::default(),
                 ground_cast_direction,
-                values.cushion_radius,
+                values.cushion_radius + values.ground_detection_radius, /* add a little overshoot */
                 true,
                 SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
             );
@@ -565,7 +565,7 @@ pub fn push_out_of_ground(
                     if ground.time_of_impact > desired_distance_from_ground {
                         let dist_away_from_ground =
                             (ground.time_of_impact - desired_distance_from_ground);
-                        if dist_away_from_ground < -0.0001 {
+                        if dist_away_from_ground > 0.0001 {
                             info!("pull down by {:?}", dist_away_from_ground);
                             transform.translation = transform.translation
                                 + (ground.normal2.normalize() * dist_away_from_ground);
