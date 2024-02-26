@@ -6,33 +6,41 @@ use crate::components::player::{
     animation::Animated,
     physics::{
         FloorInfo, KinematicCharacterPhysics, PlatformingCharacterControl,
-        PlatformingCharacterPhysics,
+        PlatformingCharacterPhysics, PlatformingCharacterValues,
     },
 };
 
 pub fn character_animation(
-    mut characters: Query<(&PlatformingCharacterControl, &PlatformingCharacterPhysics)>,
+    mut characters: Query<(
+        &PlatformingCharacterControl,
+        &PlatformingCharacterPhysics,
+        &PlatformingCharacterValues,
+    )>,
     mut char_anims: Query<(&mut Animated, &mut Transform, &Parent)>,
     mut animation_players: Query<&mut AnimationPlayer>,
     animations: Res<Animations>,
 ) {
     for (mut anim_state, mut anim_transform, parent) in char_anims.iter_mut() {
-        if let Ok((control, physics)) = characters.get(parent.get()) {
+        if let Ok((control, physics, values)) = characters.get(parent.get()) {
             anim_transform.rotation = physics.overall_rotation;
 
             match physics.air_speed {
                 crate::components::player::physics::AirSpeed::Grounded { angle, slope_quat } => {
                     if physics.ground_speed.length() > 1.0 {
                         anim_state.current_animation = 1;
+                        anim_state.speed = (physics.ground_speed.length() / values.top_speed) * 3.0;
                     } else {
                         anim_state.current_animation = 0;
+                        anim_state.speed = 1.0;
                     }
                 }
                 crate::components::player::physics::AirSpeed::InAir(air_speed) => {
                     if air_speed > 0.0 {
                         anim_state.current_animation = 2;
+                        anim_state.speed = air_speed / 10.0;
                     } else {
                         anim_state.current_animation = 3;
+                        anim_state.speed = air_speed / 10.0 * -1.0;
                     }
                 }
             }
@@ -44,9 +52,10 @@ pub fn character_animation(
                     // switch player
                     info!("switch animation to {:?}", anim_state.current_animation);
                     player
-                        .play_with_transition(current.clone_weak(), Duration::from_millis(300))
+                        .play_with_transition(current.clone_weak(), Duration::from_millis(100))
                         .repeat();
                 }
+                player.set_speed(anim_state.speed);
             }
 
             // anim_transform.rotation = match physics.air_speed {

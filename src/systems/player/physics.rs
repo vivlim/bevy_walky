@@ -162,6 +162,7 @@ pub fn update_platforming_kinematic_from_physics(
         values,
     ) in query.iter_mut()
     {
+        let show_gizmos = physics.show_gizmos;
         if physics.ground_speed.length() > 1.0 {
             physics.ground_direction = physics.ground_speed.normalize();
         }
@@ -217,7 +218,7 @@ pub fn update_platforming_kinematic_from_physics(
         let cast_origin_rotation =
             Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
         direction = cast_origin_rotation.mul(direction);
-        overall_character_rotation *= cast_origin_rotation;
+        overall_character_rotation = cast_origin_rotation * overall_character_rotation;
 
         let mut colliding_with_wall = false;
 
@@ -281,12 +282,14 @@ pub fn update_platforming_kinematic_from_physics(
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         ) {
             Some(obstacle_cast) => {
-                gizmos.circle(
-                    obstacle_cast.point1,
-                    obstacle_cast.normal1,
-                    obstacle_detection_radius,
-                    Color::RED,
-                );
+                if show_gizmos {
+                    gizmos.circle(
+                        obstacle_cast.point1,
+                        obstacle_cast.normal1,
+                        obstacle_detection_radius,
+                        Color::RED,
+                    );
+                }
                 true
                 // desired_linear_velocity = Vec3::ZERO;
                 // physics.ground_speed = Vec2::ZERO;
@@ -338,23 +341,25 @@ pub fn update_platforming_kinematic_from_physics(
             SpatialQueryFilter::new().with_masks([MyCollisionLayers::Environment]),
         );
 
-        gizmos.sphere(
-            global_transform.translation(),
-            Quat::default(),
-            radius,
-            Color::BLACK,
-        );
+        if show_gizmos {
+            gizmos.sphere(
+                global_transform.translation(),
+                Quat::default(),
+                radius,
+                Color::BLACK,
+            );
 
-        gizmos.ray(
-            front_slope_cast_origin,
-            slope_cast_direction * (slope_cast_distance),
-            Color::LIME_GREEN,
-        );
-        gizmos.ray(
-            back_slope_cast_origin,
-            slope_cast_direction * (slope_cast_distance),
-            Color::DARK_GREEN,
-        );
+            gizmos.ray(
+                front_slope_cast_origin,
+                slope_cast_direction * (slope_cast_distance),
+                Color::LIME_GREEN,
+            );
+            gizmos.ray(
+                back_slope_cast_origin,
+                slope_cast_direction * (slope_cast_distance),
+                Color::DARK_GREEN,
+            );
+        }
 
         let mut slope_detected = false;
 
@@ -363,16 +368,18 @@ pub fn update_platforming_kinematic_from_physics(
                 ground_cast_length = f32::max(front.time_of_impact, back.time_of_impact);
                 let front_contact =
                     front_slope_cast_origin + (slope_cast_direction * front.time_of_impact);
-                gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
                 let back_contact =
                     back_slope_cast_origin + (slope_cast_direction * back.time_of_impact);
-                gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
 
                 let slope = Vec3::normalize(front_contact - back_contact);
                 let new_slope_quat = Quat::from_rotation_arc(direction, slope);
                 let sloped_direction = new_slope_quat.mul_vec3(direction);
 
-                gizmos.ray(back_contact, slope, Color::GREEN);
+                if show_gizmos {
+                    gizmos.sphere(front_contact, Quat::default(), 0.1, Color::LIME_GREEN);
+                    gizmos.sphere(back_contact, Quat::default(), 0.1, Color::DARK_GREEN);
+                    gizmos.ray(back_contact, slope, Color::GREEN);
+                }
 
                 if let AirSpeed::Grounded {
                     ref mut angle,
@@ -383,7 +390,7 @@ pub fn update_platforming_kinematic_from_physics(
                     *slope_quat = new_slope_quat;
                 }
 
-                overall_character_rotation *= new_slope_quat;
+                overall_character_rotation = new_slope_quat * overall_character_rotation;
 
                 // info!("slope quat {:?}", slope_quat);
                 direction = sloped_direction;
@@ -396,16 +403,18 @@ pub fn update_platforming_kinematic_from_physics(
             _ => {}
         }
 
-        gizmos.ray(
-            ground_cast_origin,
-            ground_cast_direction * (ground_cast_length + ground_cast_overshoot),
-            Color::BISQUE,
-        );
-        gizmos.ray(
-            ground_cast_origin + (slope_cast_direction * ground_cast_length),
-            ground_cast_direction * ground_cast_overshoot,
-            Color::SEA_GREEN,
-        );
+        if show_gizmos {
+            gizmos.ray(
+                ground_cast_origin,
+                ground_cast_direction * (ground_cast_length + ground_cast_overshoot),
+                Color::BISQUE,
+            );
+            gizmos.ray(
+                ground_cast_origin + (slope_cast_direction * ground_cast_length),
+                ground_cast_direction * ground_cast_overshoot,
+                Color::SEA_GREEN,
+            );
+        }
         let ground_cast = spatial_query.cast_shape(
             &Collider::ball(ground_detection_radius),
             ground_cast_origin,
@@ -442,20 +451,24 @@ pub fn update_platforming_kinematic_from_physics(
                     }
                 };
 
-                gizmos.circle(
-                    ground.point1,
-                    ground.normal1,
-                    ground_detection_radius,
-                    Color::RED,
-                );
+                if show_gizmos {
+                    gizmos.circle(
+                        ground.point1,
+                        ground.normal1,
+                        ground_detection_radius,
+                        Color::RED,
+                    );
+                }
             }
             None => {
-                gizmos.circle(
-                    global_transform.translation(),
-                    Vec3::Y,
-                    1.0,
-                    Color::ALICE_BLUE,
-                );
+                if show_gizmos {
+                    gizmos.circle(
+                        global_transform.translation(),
+                        Vec3::Y,
+                        1.0,
+                        Color::ALICE_BLUE,
+                    );
+                }
 
                 // We aren't on the ground now. Were we previously?
                 if let AirSpeed::Grounded { .. } = physics.air_speed {
@@ -476,19 +489,21 @@ pub fn update_platforming_kinematic_from_physics(
         }
 
         // Check if we are running into any obstacles.
-        ray_arrow_gizmo(
-            &mut gizmos,
-            global_transform.translation(),
-            desired_linear_velocity.normalize() * (radius * ground_detection_radius),
-            Color::BLUE,
-        );
-        gizmos.sphere(
-            global_transform.translation()
-                + (desired_linear_velocity.normalize() * (radius * ground_detection_radius)),
-            Quat::default(),
-            ground_detection_radius,
-            Color::BLUE,
-        );
+        if show_gizmos {
+            ray_arrow_gizmo(
+                &mut gizmos,
+                global_transform.translation(),
+                desired_linear_velocity.normalize() * (radius * ground_detection_radius),
+                Color::BLUE,
+            );
+            gizmos.sphere(
+                global_transform.translation()
+                    + (desired_linear_velocity.normalize() * (radius * ground_detection_radius)),
+                Quat::default(),
+                ground_detection_radius,
+                Color::BLUE,
+            );
+        }
 
         // Apply linear velocity.
         lv.0 = desired_linear_velocity;

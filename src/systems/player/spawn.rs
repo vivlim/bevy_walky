@@ -29,17 +29,7 @@ pub fn spawn_player(
     asset_server: Res<AssetServer>,
 ) {
     let mut player = commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
-            material: materials.add(Color::rgba_u8(124, 0, 255, 69).into()),
-            transform: Transform::from_xyz(0.0, 2.0, 0.0),
-            ..default()
-        },
-        RigidBody::Kinematic,
-        Collider::ball(0.35),
-    ));
-    player
-        .insert(PlatformingCharacterPhysics {
+        PlatformingCharacterPhysics {
             ground_speed: Vec2::ZERO,
             ground_direction: Vec2::X,
             ground_cast_direction: Vec3::NEG_Y,
@@ -47,7 +37,13 @@ pub fn spawn_player(
             wall_running: false,
             wall_collision_normal: None,
             overall_rotation: Quat::default(),
-        })
+            show_gizmos: false,
+        },
+        SpatialBundle::from_transform(Transform::from_xyz(0.0, 2.0, 0.0)),
+        RigidBody::Kinematic,
+        Collider::ball(0.35),
+    ));
+    player
         .insert(PlatformingCharacterPhysicsAccel {
             ground_acceleration: Vec2::ZERO,
             ground_friction: 0.0,
@@ -107,6 +103,7 @@ pub fn spawn_player(
             },
             Animated {
                 current_animation: 0,
+                speed: 1.0,
             },
         ))
         .set_parent(player_id);
