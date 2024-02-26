@@ -37,6 +37,7 @@ pub struct PlatformingCharacterPhysics {
     pub wall_running: bool,
     /// feedback from 3d collisions to use for damping ground speed
     pub wall_collision_normal: Option<Vec3>,
+    pub overall_rotation: Quat,
 }
 
 #[derive(Component, Reflect)]

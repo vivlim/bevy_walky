@@ -5,6 +5,7 @@ use bevy_xpbd_3d::prelude::*;
 use strum::EnumCount;
 use strum::IntoEnumIterator;
 
+use crate::components::player::animation::Animated;
 use crate::components::player::physics::FloorInfo;
 use crate::components::player::physics::PlatformingCharacterAnimationFlags;
 use crate::components::player::sensors::CharacterSensor;
@@ -45,6 +46,7 @@ pub fn spawn_player(
             air_speed: crate::components::player::physics::AirSpeed::InAir(0.0),
             wall_running: false,
             wall_collision_normal: None,
+            overall_rotation: Quat::default(),
         })
         .insert(PlatformingCharacterPhysicsAccel {
             ground_acceleration: Vec2::ZERO,
@@ -95,6 +97,19 @@ pub fn spawn_player(
 
     let player_id = player.id();
     info!("Player is entity {:?}", player_id);
+
+    let model = commands
+        .spawn((
+            SceneBundle {
+                scene: asset_server.load("degauss.glb#Scene0"),
+                transform: Transform::default().with_scale(Vec3::new(0.5, 0.5, 0.5)),
+                ..default()
+            },
+            Animated {
+                current_animation: 0,
+            },
+        ))
+        .set_parent(player_id);
 
     // let sensors = CharacterSensorArray {
     //     sensors: CharacterSensor::iter()

@@ -172,6 +172,8 @@ pub fn update_platforming_kinematic_from_physics(
             z: physics.ground_direction.y,
         };
 
+        let mut overall_character_rotation = Quat::from_rotation_arc(Vec3::Z, direction);
+
         // Wall running
         if let AirSpeed::Grounded { angle, .. } = physics.air_speed {
             if (angle > PI / 4.0 || angle < -PI / 4.0) {
@@ -215,6 +217,7 @@ pub fn update_platforming_kinematic_from_physics(
         let cast_origin_rotation =
             Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
         direction = cast_origin_rotation.mul(direction);
+        overall_character_rotation *= cast_origin_rotation;
 
         let mut colliding_with_wall = false;
 
@@ -380,6 +383,8 @@ pub fn update_platforming_kinematic_from_physics(
                     *slope_quat = new_slope_quat;
                 }
 
+                overall_character_rotation *= new_slope_quat;
+
                 // info!("slope quat {:?}", slope_quat);
                 direction = sloped_direction;
                 ground_cast_direction = new_slope_quat.mul_vec3(ground_cast_direction);
@@ -492,6 +497,7 @@ pub fn update_platforming_kinematic_from_physics(
             lv.y = air_speed;
             physics.ground_cast_direction = Vec3::NEG_Y;
         }
+        physics.overall_rotation = overall_character_rotation;
     }
 }
 

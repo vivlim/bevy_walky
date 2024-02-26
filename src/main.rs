@@ -64,6 +64,7 @@ fn main() {
         .register_type::<components::player::physics::PlatformingCharacterValues>()
         .register_type::<components::player::physics::PlatformingCharacterControl>()
         .register_type::<components::player::physics::PlatformingCharacterAnimationFlags>()
+        .register_type::<components::player::animation::Animated>()
         .register_type::<CharacterSensorArray>()
         .register_type::<LookTransform>()
         .register_type::<OrbitCameraTarget>()
@@ -73,6 +74,7 @@ fn main() {
         .add_systems(Startup, systems::world::scene::setup_scene)
         .add_systems(Startup, systems::player::spawn::spawn_player)
         .add_systems(Startup, systems::world::scene::setup_physics)
+        .add_systems(Startup, systems::player::animation::setup_animations)
         .add_systems(
             Update,
             systems::world::physics_fixup::fixup_nested_colliders,
@@ -83,6 +85,7 @@ fn main() {
         )
         .add_systems(Update, systems::player::control::character_movement)
         .add_systems(Update, systems::player::control::character_gamepad)
+        .add_systems(Update, systems::player::animation::character_animation)
         .add_systems(Update, update_camera)
         .add_systems(Update, project_input_camera)
         .add_systems(
