@@ -195,8 +195,15 @@ pub fn update_platforming_kinematic_from_physics(
                         // Positive Y is ceiling running.
                         if new_ground_direction.y > 0.0 {
                             new_ground_direction.y = 1.0;
+                            // Get ceiling run axis
+                            // 90 degrees from the current linear velocity direction, perpendicular to the wall we're walking on
+                            let wall_to_ceil_arc = Quat::from_rotation_arc(physics.ground_cast_direction, new_ground_direction);
+                            let floor_to_wall_arc = Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
+
+                            physics.ceiling_run_quat = Some(floor_to_wall_arc.mul_quat(wall_to_ceil_arc))
                         } else {
                             new_ground_direction.y = -1.0;
+                            physics.ceiling_run_quat = None;
                         }
                         physics.wall_running = false;
                     } else {
@@ -205,18 +212,26 @@ pub fn update_platforming_kinematic_from_physics(
                         if let Some(n) = new_ground_direction.try_normalize() {
                             new_ground_direction = n;
                             physics.wall_running = true;
+                            physics.ceiling_run_quat = None;
                         } else {
                             // Return to default (ground is down)
                             new_ground_direction = Vec3::NEG_Y;
                             physics.wall_running = false;
+                            physics.ceiling_run_quat = None;
                         }
                     }
                     physics.ground_cast_direction = new_ground_direction;
                 }
             }
         }
-        let cast_origin_rotation =
-            Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction);
+
+        // Get a quat representing the rotation between down (neg Y) and whatever the ground is right now.
+        // If ceiling running, use the stored quat, which is oriented to the wall that was climbed before the ceiling run.
+        let cast_origin_rotation = match physics.ceiling_run_quat {
+            Some(c) => c,
+            None => Quat::from_rotation_arc(Vec3::NEG_Y, physics.ground_cast_direction)
+        };
+
         direction = cast_origin_rotation.mul(direction);
         overall_character_rotation = cast_origin_rotation * overall_character_rotation;
 
@@ -483,6 +498,7 @@ pub fn update_platforming_kinematic_from_physics(
                     physics.ground_speed.x = lv.x;
                     physics.ground_speed.y = lv.z;
                     physics.wall_running = false;
+                    physics.ceiling_run_quat = None;
                     physics.ground_cast_direction = Vec3::NEG_Y;
                 }
             }

@@ -39,6 +39,8 @@ pub struct PlatformingCharacterPhysics {
     pub wall_collision_normal: Option<Vec3>,
     pub overall_rotation: Quat,
     pub show_gizmos: bool,
+    /// When ceiling running, this quaternion represents the rotation from ground to ceiling that passes through the wall that was climbed.
+    pub ceiling_run_quat: Option<Quat>,
 }
 
 #[derive(Component, Reflect)]

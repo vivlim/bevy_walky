@@ -38,6 +38,7 @@ pub fn spawn_player(
             wall_collision_normal: None,
             overall_rotation: Quat::default(),
             show_gizmos: false,
+            ceiling_run_quat: None
         },
         SpatialBundle::from_transform(Transform::from_xyz(0.0, 2.0, 0.0)),
         RigidBody::Kinematic,
